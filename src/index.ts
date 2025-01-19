@@ -5,7 +5,7 @@ const app = new Hono()
 
 
 app.get('/', (c) => {
-  return c.text('Hello Hono!')
+  return c.text('Hello, welcome to serverless ai service!')
 })
 
 app.get('/v1/chat/completions', chatCompletions);
