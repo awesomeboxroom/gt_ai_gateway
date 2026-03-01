@@ -1,47 +1,73 @@
-import { readdirSync, existsSync, readFileSync } from 'fs'
-import { join } from 'path'
 import { ormService } from './ormService'
+import fileService from './fileService'
 
-const RESOURCE_DIR = join(process.cwd(), 'src/resource')
+const RESOURCE_DIR = 'src/resource'
 
 export interface Migration {
+  id?: number
   name: string
-  version: number
+  applied_at?: string
+}
+
+// 从文件名提取版本号（.sql 前面的四位数字）
+function extractVersion(name: string): number {
+  const match = name.match(/(\d{4})\.sql$/)
+  return match ? parseInt(match[1], 10) : 0
 }
 
 async function initMigrationsTable() {
   const dbAdapter = ormService.dbAdapter
-  await dbAdapter.exec('CREATE TABLE IF NOT EXISTS _migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, version INTEGER NOT NULL, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)')
+  // 创建新表（不包含 version 字段）
+  await dbAdapter.exec('CREATE TABLE IF NOT EXISTS _migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)')
 }
 
 async function getAppliedMigrations(): Promise<Migration[]> {
   const dbAdapter = ormService.dbAdapter
-  const result = await dbAdapter.prepare('SELECT name, version FROM _migrations ORDER BY version').all()
+  const result = await dbAdapter.prepare('SELECT name FROM _migrations ORDER BY name').all()
   if (result && 'results' in result) {
     return result.results as Migration[]
   }
   return (result || []) as Migration[]
 }
 
-function getAvailableMigrations(): Migration[] {
-  if (!existsSync(RESOURCE_DIR)) {
-    return []
+async function getAppliedMigrationsWithDetails(): Promise<Migration[]> {
+  await initMigrationsTable()
+  const dbAdapter = ormService.dbAdapter
+  const result = await dbAdapter.prepare('SELECT id, name, applied_at FROM _migrations ORDER BY name').all()
+  if (result && 'results' in result) {
+    return result.results as Migration[]
+  }
+  return (result || []) as Migration[]
+}
+
+async function getAvailableMigrations(): Promise<Migration[]> {
+  const files = await fileService.listFiles(RESOURCE_DIR, '*.sql')
+
+  console.log('getAvailableMigrations - RESOURCE_DIR:', RESOURCE_DIR)
+  console.log('getAvailableMigrations - files:', files)
+
+  // 过滤不符合规范的文件名并输出警告
+  const validFiles: string[] = []
+  for (const file of files) {
+    const version = extractVersion(file)
+    if (version > 0) {
+      validFiles.push(file)
+    } else {
+      console.warn(`Warning: Migration file "${file}" does not match naming convention. Skipping.`)
+    }
   }
 
-  const files = readdirSync(RESOURCE_DIR)
-    .filter(f => f.endsWith('.sql'))
-    .sort()
-
-  return files.map((file, index) => ({
-    name: file,
-    version: index + 1
+  return validFiles.sort().map((file) => ({
+    name: file
   }))
 }
 
 async function applyMigration(migration: Migration) {
   const dbAdapter = ormService.dbAdapter
-  const sqlPath = join(RESOURCE_DIR, migration.name)
-  const sql = readFileSync(sqlPath, 'utf-8')
+  const sqlPath = `${RESOURCE_DIR}/${migration.name}`
+  const sql = await fileService.readFile(sqlPath)
+
+  console.log('applyMigration - sqlPath:', sqlPath)
 
   // 将 SQL 按分号分割并去除空语句
   const statements = sql
@@ -56,8 +82,8 @@ async function applyMigration(migration: Migration) {
 
   // 记录已应用的迁移
   await dbAdapter.prepare(
-    'INSERT INTO _migrations (name, version) VALUES (?, ?)'
-  ).run(migration.name, migration.version)
+    'INSERT INTO _migrations (name) VALUES (?)'
+  ).run(migration.name)
 
   console.log(`Applied migration: ${migration.name}`)
 }
@@ -66,10 +92,12 @@ async function migrate(): Promise<number> {
   await initMigrationsTable()
 
   const applied = await getAppliedMigrations()
-  const available = getAvailableMigrations()
+  const available = await getAvailableMigrations()
 
-  const appliedVersions = new Set(applied.map(m => m.version))
-  const pendingMigrations = available.filter(m => !appliedVersions.has(m.version))
+  const appliedNames = new Set(applied.map(m => m.name))
+  const pendingMigrations = available.filter(m => !appliedNames.has(m.name))
+
+  console.log('migrate - applied:', applied.length, 'available:', available.length, 'pending:', pendingMigrations.length)
 
   if (pendingMigrations.length === 0) {
     console.log('Database is up to date')
@@ -88,11 +116,12 @@ async function migrate(): Promise<number> {
 async function getCurrentVersion(): Promise<number> {
   await initMigrationsTable()
   const dbAdapter = ormService.dbAdapter
-  const result = await dbAdapter.prepare('SELECT MAX(version) as max_version FROM _migrations').first()
-  return result?.max_version || 0
+  const result = await dbAdapter.prepare('SELECT name FROM _migrations ORDER BY name DESC LIMIT 1').first()
+  return result?.name ? extractVersion(result.name) : 0
 }
 
 export default {
   migrate,
   getCurrentVersion,
+  getAppliedMigrations: getAppliedMigrationsWithDetails,
 }

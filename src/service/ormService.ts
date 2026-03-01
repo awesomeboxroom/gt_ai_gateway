@@ -21,7 +21,7 @@ class ORMService {
         throw new Error('dbPath is required for local mode');
       }
       const Database = (await import('better-sqlite3')).default;
-      
+
       sutando.addConnection({
         client: 'better-sqlite3',
         connection: {
@@ -29,11 +29,11 @@ class ORMService {
         },
         useNullAsDefault: true,
       });
-      
+
       const db = new Database(dbPath);
       this._dbAdapter = new SQLiteAdapter(db);
     }
-    
+
     return this._dbAdapter;
   }
 
@@ -46,7 +46,7 @@ class ORMService {
 
     if (!this._cloudConnected) {
       const ClientD1 = (await import('knex-cloudflare-d1')).default;
-      
+
       sutando.addConnection({
         client: ClientD1,
         connection: {
@@ -62,6 +62,14 @@ class ORMService {
     if (this.mode === 'cloud') {
       await this.connectCloud(db);
     }
+  }
+
+  get isLocal(): boolean {
+    return this.mode === 'local';
+  }
+
+  get isCloud(): boolean {
+    return this.mode === 'cloud';
   }
 
   get dbAdapter(): DatabaseAdapter {

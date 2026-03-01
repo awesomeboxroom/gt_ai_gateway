@@ -6,6 +6,7 @@ import * as VendorController from './controller/vendorController'
 import * as RecordController from './controller/recordController'
 import * as MigrateController from './controller/migrateController'
 import * as SystemController from './controller/systemController'
+import * as FileController from './controller/fileController'
 import { ormService } from './service/ormService'
 
 interface Env {
@@ -28,6 +29,7 @@ app.get('/', SystemController.welcome)
 // Migration
 app.post('/migrate.json', MigrateController.migrate)
 app.get('/migrate/status.json', MigrateController.status)
+app.get('/migrate/list.json', MigrateController.list)
 
 // Model
 app.post('/model/create.json', ModelController.createModel)
@@ -50,6 +52,10 @@ app.get('/record/:id', RecordController.getRecord)
 
 // AI
 app.post('/v1/chat/completions', chatCompletions)
+
+// File
+app.get('/file/list', FileController.list)
+app.get('/file/read', FileController.read)
 
 export { app, Env }
 export default app
