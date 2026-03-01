@@ -1,8 +1,6 @@
-import { readdirSync } from 'fs'
+import { readdirSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { existsSync } from 'fs'
-import { readFileSync } from 'fs'
-import { DatabaseAdapter } from './dbAdapter'
+import { ormService } from './ormService'
 
 const RESOURCE_DIR = join(process.cwd(), 'src/resource')
 
@@ -11,7 +9,8 @@ export interface Migration {
   version: number
 }
 
-async function initMigrationsTable(dbAdapter: DatabaseAdapter) {
+async function initMigrationsTable() {
+  const dbAdapter = ormService.dbAdapter
   await dbAdapter.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,12 +21,13 @@ async function initMigrationsTable(dbAdapter: DatabaseAdapter) {
   `)
 }
 
-async function getAppliedMigrations(dbAdapter: DatabaseAdapter): Promise<Migration[]> {
+async function getAppliedMigrations(): Promise<Migration[]> {
+  const dbAdapter = ormService.dbAdapter
   const result = await dbAdapter.prepare('SELECT name, version FROM _migrations ORDER BY version').all()
-  if ('results' in result) {
+  if (result && 'results' in result) {
     return result.results as Migration[]
   }
-  return result as Migration[]
+  return (result || []) as Migration[]
 }
 
 function getAvailableMigrations(): Migration[] {
@@ -45,7 +45,8 @@ function getAvailableMigrations(): Migration[] {
   }))
 }
 
-async function applyMigration(dbAdapter: DatabaseAdapter, migration: Migration) {
+async function applyMigration(migration: Migration) {
+  const dbAdapter = ormService.dbAdapter
   const sqlPath = join(RESOURCE_DIR, migration.name)
   const sql = readFileSync(sqlPath, 'utf-8')
 
@@ -60,10 +61,10 @@ async function applyMigration(dbAdapter: DatabaseAdapter, migration: Migration) 
   console.log(`Applied migration: ${migration.name}`)
 }
 
-async function migrate(dbAdapter: DatabaseAdapter): Promise<number> {
-  await initMigrationsTable(dbAdapter)
+async function migrate(): Promise<number> {
+  await initMigrationsTable()
 
-  const applied = await getAppliedMigrations(dbAdapter)
+  const applied = await getAppliedMigrations()
   const available = getAvailableMigrations()
 
   const appliedVersions = new Set(applied.map(m => m.version))
@@ -77,13 +78,14 @@ async function migrate(dbAdapter: DatabaseAdapter): Promise<number> {
   console.log(`Found ${pendingMigrations.length} pending migration(s)`)
 
   for (const migration of pendingMigrations) {
-    await applyMigration(dbAdapter, migration)
+    await applyMigration(migration)
   }
 
   return pendingMigrations.length
 }
 
-async function getCurrentVersion(dbAdapter: DatabaseAdapter): Promise<number> {
+async function getCurrentVersion(): Promise<number> {
+  const dbAdapter = ormService.dbAdapter
   const result = await dbAdapter.prepare('SELECT MAX(version) as max_version FROM _migrations').first()
   return result?.max_version || 0
 }

@@ -1,20 +1,14 @@
 import { Context } from 'hono'
-import { DatabaseAdapter } from '../service/dbAdapter'
+import migrateService from '../service/migrateService'
 
-function migrate(dbAdapter: DatabaseAdapter) {
-  return async function(c: Context) {
-    const migrateService = await import('../service/migrateService')
-    const count = await migrateService.migrate(dbAdapter)
-    return c.json({ success: true, count })
-  }
+async function migrate(c: Context) {
+  const count = await migrateService.migrate()
+  return c.json({ success: true, count })
 }
 
-function status(dbAdapter: DatabaseAdapter) {
-  return async function(c: Context) {
-    const migrateService = await import('../service/migrateService')
-    const version = await migrateService.getCurrentVersion(dbAdapter)
-    return c.json({ currentVersion: version })
-  }
+async function status(c: Context) {
+  const version = await migrateService.getCurrentVersion()
+  return c.json({ currentVersion: version })
 }
 
 export { migrate, status }

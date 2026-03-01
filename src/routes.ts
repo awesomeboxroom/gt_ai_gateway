@@ -1,5 +1,4 @@
 import { Hono, MiddlewareHandler } from 'hono'
-import { DatabaseAdapter } from './service/dbAdapter'
 import { chatCompletions } from './controller/gatewayController'
 import * as ModelController from './controller/modelController'
 import * as UserController from './controller/userController'
@@ -7,66 +6,50 @@ import * as VendorController from './controller/vendorController'
 import * as RecordController from './controller/recordController'
 import * as MigrateController from './controller/migrateController'
 import * as SystemController from './controller/systemController'
-
-declare module 'hono' {
-  interface ContextVariableMap {
-  }
-}
+import { ormService } from './service/ormService'
 
 interface Env {
   DB: D1Database;
 }
 
-interface RoutesOptions {
-  dbAdapter: DatabaseAdapter
-  mode: 'cloud' | 'local'
-  middlewares?: MiddlewareHandler[]
+const dbMiddleware: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+  await ormService.prepareDBConnection(c.env?.DB)
+  await next()
 }
 
-function createApp(options: RoutesOptions) {
-  const app = new Hono()
+const app = new Hono<{ Bindings: Env }>()
 
-  if (options.middlewares) {
-    options.middlewares.forEach(m => app.use(m))
-  }
+// 注册数据库中间件
+app.use('*', dbMiddleware)
 
-  return setupRoutes(app, options)
-}
+// System
+app.get('/', SystemController.welcome)
 
-function setupRoutes(app: Hono, options: RoutesOptions) {
-  const { dbAdapter, mode } = options
+// Migration
+app.post('/migrate', MigrateController.migrate)
+app.get('/migrate/status', MigrateController.status)
 
-  // System
-  app.get('/', SystemController.welcome(mode))
-  app.get('/initDatabase.json', SystemController.initDatabase(mode))
+// Model
+app.post('/model/create.json', ModelController.createModel)
+app.get('/model/list.json', ModelController.listModels)
 
-  // Migration
-  app.post('/migrate', MigrateController.migrate(dbAdapter))
-  app.get('/migrate/status', MigrateController.status(dbAdapter))
+// User
+app.get('/user/list.json', UserController.listUsers)
+app.get('/user/:id', UserController.getUser)
+app.post('/user/create.json', UserController.createUser)
 
-  // Model
-  app.post('/model/create.json', ModelController.createModel)
-  app.get('/model/list.json', ModelController.listModels)
+// Vendor
+app.get('/vendor/list.json', VendorController.listVendors)
+app.get('/vendor/:id', VendorController.getVendor)
+app.post('/vendor/create.json', VendorController.createVendor)
 
-  // User
-  app.get('/user/list.json', UserController.listUsers)
-  app.get('/user/:id', UserController.getUser)
-  app.post('/user/create.json', UserController.createUser)
+// Record
+app.get('/record/list.json', RecordController.listRecords)
+app.get('/record/latest.json', RecordController.latestRecords)
+app.get('/record/:id', RecordController.getRecord)
 
-  // Vendor
-  app.get('/vendor/list.json', VendorController.listVendors)
-  app.get('/vendor/:id', VendorController.getVendor)
-  app.post('/vendor/create.json', VendorController.createVendor)
+// AI
+app.post('/v1/chat/completions', chatCompletions)
 
-  // Record
-  app.get('/record/list.json', RecordController.listRecords)
-  app.get('/record/latest.json', RecordController.latestRecords)
-  app.get('/record/:id', RecordController.getRecord)
-
-  // AI
-  app.post('/v1/chat/completions', chatCompletions)
-
-  return app
-}
-
-export { Env, RoutesOptions, createApp, setupRoutes }
+export { app, Env }
+export default app
