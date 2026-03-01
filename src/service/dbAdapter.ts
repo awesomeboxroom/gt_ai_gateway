@@ -42,15 +42,25 @@ class SQLiteStatementAdapter implements StatementAdapter {
 
 // D1 适配器
 export class D1Adapter implements DatabaseAdapter {
-  constructor(private db: D1Database) {}
+  constructor(private db?: D1Database) {}
 
   async exec(sql: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('D1Adapter: DB not initialized');
+    }
     await this.db.exec(sql)
   }
 
   prepare(sql: string): StatementAdapter {
+    if (!this.db) {
+      throw new Error('D1Adapter: DB not initialized');
+    }
     const stmt = this.db.prepare(sql)
     return new D1StatementAdapter(stmt)
+  }
+
+  setDB(db: D1Database) {
+    this.db = db;
   }
 }
 

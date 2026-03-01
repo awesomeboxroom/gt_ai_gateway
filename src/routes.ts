@@ -1,173 +1,72 @@
-import { Hono, Context } from 'hono'
-import {SgUser} from "./model/sgUser";
-import {SgModel} from "./model/sgModel";
-import {SgVendor} from "./model/sgVendor";
-import {SgRecord} from "./model/sgRecord";
-import recordService from "./service/recordService";
+import { Hono, MiddlewareHandler } from 'hono'
+import { DatabaseAdapter } from './service/dbAdapter'
 import { chatCompletions } from './web/aiApiEntry'
+import * as ModelController from './controller/modelController'
+import * as UserController from './controller/userController'
+import * as VendorController from './controller/vendorController'
+import * as RecordController from './controller/recordController'
+import * as MigrateController from './controller/migrateController'
+import * as SystemController from './controller/systemController'
 
 declare module 'hono' {
   interface ContextVariableMap {
   }
 }
 
-export interface Env {
+interface Env {
   DB: D1Database;
 }
 
-export function setupRoutes(app: Hono, mode: 'cloud' | 'local') {
-  app.get('/', (c) => {
-    const message = mode === 'cloud'
-      ? 'Hello, welcome to serverless ai gateway!'
-      : 'Hello, welcome to serverless ai gateway (local mode)!'
-    return c.text(message)
-  })
+interface RoutesOptions {
+  dbAdapter: DatabaseAdapter
+  mode: 'cloud' | 'local'
+  middlewares?: MiddlewareHandler[]
+}
 
-  app.get('/initDatabase.json', async (c) => {
-    if (mode === 'cloud') {
-      return c.text('init database')
-    }
-    return c.json({ message: 'Database initialized' })
-  })
+function createApp(options: RoutesOptions) {
+  const app = new Hono()
 
-  app.post('/migrate', async (c) => {
-    const { MigrateService } = await import('./service/migrateService')
-    const { SQLiteAdapter, D1Adapter } = await import('./service/dbAdapter')
+  if (options.middlewares) {
+    options.middlewares.forEach(m => app.use(m))
+  }
 
-    if (mode === 'local') {
-      const { join } = await import('path')
-      const DB_PATH = join(process.cwd(), 'local.db')
-      const Database = (await import('better-sqlite3')).default
+  return setupRoutes(app, options)
+}
 
-      const db = new Database(DB_PATH)
-      const adapter = new SQLiteAdapter(db)
-      const migrateService = new MigrateService(adapter)
-      const count = await migrateService.migrate()
-      db.close()
-      return c.json({ success: true, count })
-    } else {
-      const adapter = new D1Adapter(c.env.DB)
-      const migrateService = new MigrateService(adapter)
-      const count = await migrateService.migrate()
-      return c.json({ success: true, count })
-    }
-  })
+function setupRoutes(app: Hono, options: RoutesOptions) {
+  const { dbAdapter, mode } = options
 
-  app.get('/migrate/status', async (c) => {
-    const { MigrateService } = await import('./service/migrateService')
-    const { SQLiteAdapter, D1Adapter } = await import('./service/dbAdapter')
+  // System
+  app.get('/', SystemController.welcome(mode))
+  app.get('/initDatabase.json', SystemController.initDatabase(mode))
 
-    if (mode === 'local') {
-      const { join } = await import('path')
-      const DB_PATH = join(process.cwd(), 'local.db')
-      const Database = (await import('better-sqlite3')).default
+  // Migration
+  app.post('/migrate', MigrateController.migrate(dbAdapter))
+  app.get('/migrate/status', MigrateController.status(dbAdapter))
 
-      const db = new Database(DB_PATH)
-      const adapter = new SQLiteAdapter(db)
-      const migrateService = new MigrateService(adapter)
-      const version = await migrateService.getCurrentVersion()
-      db.close()
-      return c.json({ currentVersion: version })
-    } else {
-      const adapter = new D1Adapter(c.env.DB)
-      const migrateService = new MigrateService(adapter)
-      const version = await migrateService.getCurrentVersion()
-      return c.json({ currentVersion: version })
-    }
-  })
+  // Model
+  app.post('/model/create.json', ModelController.createModel)
+  app.get('/model/list.json', ModelController.listModels)
 
-  app.post('/model/create.json', async (c) => {
-    const body = await c.req.json()
-    const { name, vendor_id } = body
+  // User
+  app.get('/user/list.json', UserController.listUsers)
+  app.get('/user/:id', UserController.getUser)
+  app.post('/user/create.json', UserController.createUser)
 
-    const instance = await SgModel.query().create({
-      name,
-      vendor_id,
-    })
+  // Vendor
+  app.get('/vendor/list.json', VendorController.listVendors)
+  app.get('/vendor/:id', VendorController.getVendor)
+  app.post('/vendor/create.json', VendorController.createVendor)
 
-    return c.json(instance)
-  })
+  // Record
+  app.get('/record/list.json', RecordController.listRecords)
+  app.get('/record/latest.json', RecordController.latestRecords)
+  app.get('/record/:id', RecordController.getRecord)
 
-  app.get('/model/list.json', async (c) => {
-    const modelConfigs = await SgModel.query().get()
-    return c.json(modelConfigs)
-  })
-
-  app.get('/user/list.json', async (c) => {
-    const users = await SgUser.query().get()
-    return c.json(users)
-  })
-
-  app.get(`/user/:id`, async (c) => {
-    const { id } = c.req.param()
-
-    const user = await SgUser.query().findOrFail(id)
-    console.log("user", user)
-    return c.json(user)
-  })
-
-  app.post('/user/create.json', async (c) => {
-    const body = await c.req.json()
-    let { name, token } = body
-
-    if (token == null) {
-      token = crypto.randomUUID()
-    }
-
-    const instance = await SgUser.query().create({
-      name,
-      token,
-    })
-
-    return c.json(instance)
-  })
-
-  app.get('/vendor/list.json', async (c) => {
-    const users = await SgVendor.query().get()
-    return c.json(users)
-  })
-
-  app.get(`/vendor/:id`, async (c) => {
-    const { id } = c.req.param()
-
-    const vendor = await SgVendor.query().findOrFail(id)
-    return c.json(vendor)
-  })
-
-  app.post('/vendor/create.json', async (c) => {
-    const body = await c.req.json()
-    const { type, name, token, url } = body
-
-    const instance = await SgVendor.query().create({
-      type,
-      name,
-      token,
-      url,
-    })
-
-    return c.json(instance)
-  })
-
-  app.get('/record/list.json', async (c) => {
-    const records = await SgRecord.query().get()
-    return c.json(records)
-  })
-
-  app.get('/record/latest.json', async (c) => {
-    const { limit } = c.req.query()
-    const limitNumber = limit ? parseInt(limit, 10) : 10
-    const records = await recordService.latest(limitNumber)
-    return c.json(records)
-  })
-
-  app.get('/record/:id', async (c) => {
-    const { id } = c.req.param()
-    console.log("id", id)
-    const record = await SgRecord.query().findOrFail(id)
-    return c.json(record)
-  })
-
+  // AI
   app.post('/v1/chat/completions', chatCompletions)
 
   return app
 }
+
+export { Env, RoutesOptions, createApp, setupRoutes }

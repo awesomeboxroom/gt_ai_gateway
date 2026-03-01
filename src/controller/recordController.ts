@@ -1,0 +1,24 @@
+import { Context } from 'hono'
+import { SgRecord } from '../model/sgRecord'
+import recordService from "../service/recordService"
+
+const listRecords = async (c: Context) => {
+  const records = await SgRecord.query().get()
+  return c.json(records)
+}
+
+const latestRecords = async (c: Context) => {
+  const { limit } = c.req.query()
+  const limitNumber = limit ? parseInt(limit, 10) : 10
+  const records = await recordService.latest(limitNumber)
+  return c.json(records)
+}
+
+const getRecord = async (c: Context) => {
+  const { id } = c.req.param()
+  console.log("id", id)
+  const record = await SgRecord.query().findOrFail(id)
+  return c.json(record)
+}
+
+export { listRecords, latestRecords, getRecord }
