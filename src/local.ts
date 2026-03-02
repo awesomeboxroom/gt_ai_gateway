@@ -3,7 +3,7 @@ import { serve } from '@hono/node-server'
 import ormService from './service/ormService'
 import app from './routes'
 
-const DB_PATH = join(process.cwd(), 'local.db')
+const DB_PATH = process.env.DB_PATH || join(process.cwd(), 'local.db')
 
 async function startServer() {
   // 初始化本地配置

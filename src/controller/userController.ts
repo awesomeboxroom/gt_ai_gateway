@@ -19,23 +19,31 @@ async function getUser(c: Context) {
 }
 
 async function createUser(c: Context) {
-  const body = await c.req.json()
-  let { name, token } = body
+  try {
+    const body = await c.req.json()
+    let { name, token } = body
 
-  if (token === null || token === undefined || token === '') {
-    token = crypto.randomUUID()
+    if (token === null || token === undefined || token === '') {
+      token = crypto.randomUUID()
+    }
+
+    console.log('[userController] Creating user:', { name, token })
+
+    const instance = await SgUser.query().create({
+      name,
+      token,
+    })
+
+    console.log('[userController] User created successfully:', instance)
+    return c.json(instance)
+  } catch (error) {
+    console.error('[userController] Error creating user:', error)
+    return c.json({ error: 'Failed to create user', message: String(error) }, 500)
   }
-
-  const instance = await SgUser.query().create({
-    name,
-    token,
-  })
-
-  return c.json(instance)
 }
 
 export default {
-    listUsers,
-    getUser,
-    createUser
+  listUsers,
+  getUser,
+  createUser
 }

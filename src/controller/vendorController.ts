@@ -22,6 +22,17 @@ async function createVendor(c: Context) {
   const body = await c.req.json()
   const { type, name, token, url, api_format } = body
 
+  // Validation
+  if (!type || !name || !token || !url) {
+    return c.json({ error: 'Missing required fields' }, 400)
+  }
+
+  // Validate api_format
+  const validFormats = ['openai', 'anthropic']
+  if (!api_format || !validFormats.includes(api_format)) {
+    return c.json({ error: 'Invalid api_format' }, 400)
+  }
+
   const instance = await SgVendor.query().create({
     type,
     name,
@@ -34,7 +45,7 @@ async function createVendor(c: Context) {
 }
 
 export default {
-    listVendors,
-    getVendor,
-    createVendor
+  listVendors,
+  getVendor,
+  createVendor
 }

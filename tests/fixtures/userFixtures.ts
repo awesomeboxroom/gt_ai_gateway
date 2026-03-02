@@ -25,6 +25,7 @@ export const USER_FIXTURES = {
     name: 'A'.repeat(255),
     token: randomUUID(),
   },
+  // 空字符串 token 会被自动生成新的 UUID（在 userController 中处理）
   emptyToken: {
     name: 'Test User',
     token: '',

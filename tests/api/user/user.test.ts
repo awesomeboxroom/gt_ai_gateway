@@ -65,11 +65,15 @@ describe('User API (Positive)', () => {
     })
 
     it('should handle empty token', async () => {
-      const userData = USER_FIXTURES.emptyToken
+      const userData = USER_FIXTURES.emptyToken  // token: ''
       const response = await post('/user/create.json', userData)
 
       expect(response.status).toBe(200)
-      expect(response.body.token).toBe(userData.token)
+      // 空 token 会被自动生成（在 userController 中使用 crypto.randomUUID()）
+      expect(response.body.token).toBeTruthy()
+      expect(typeof response.body.token).toBe('string')
+      expect(response.body.token.length).toBeGreaterThan(0)
+      expect(response.body.token).not.toBe('')  // 不应该是空字符串
     })
   })
 

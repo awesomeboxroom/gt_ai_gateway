@@ -27,6 +27,7 @@ app.get('/', systemController.welcome)
 // Model
 app.post('/model/create.json', modelController.createModel)
 app.get('/model/list.json', modelController.listModels)
+app.get('/model/:id', modelController.getModel)
 
 // User
 app.get('/user/list.json', userController.listUsers)
