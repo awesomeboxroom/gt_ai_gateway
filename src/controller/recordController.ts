@@ -15,10 +15,15 @@ async function latestRecords(c: Context) {
 }
 
 async function getRecord(c: Context) {
-    const { id } = c.req.param();
-    console.log("id", id);
+    const id = c.req.param("id");
+    const recordId = parseInt(id, 10);
+    console.log("id", id, "recordId", recordId);
 
-    const record = await SgRecord.query().find(id);
+    if (isNaN(recordId)) {
+        return c.json({ error: "Invalid ID format" }, 400);
+    }
+
+    const record = await SgRecord.query().find(recordId);
 
     if (!record) {
         return c.json({ error: "Record not found" }, 404);

@@ -7,9 +7,14 @@ async function listUsers(c: Context) {
 }
 
 async function getUser(c: Context) {
-    const { id } = c.req.param();
+    const id = c.req.param("id");
+    const userId = parseInt(id, 10);
 
-    const user = await SgUser.query().find(id);
+    if (isNaN(userId)) {
+        return c.json({ error: "Invalid ID format" }, 400);
+    }
+
+    const user = await SgUser.query().find(userId);
 
     if (!user) {
         return c.json({ error: "User not found" }, 404);

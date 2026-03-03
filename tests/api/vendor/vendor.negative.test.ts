@@ -1,15 +1,28 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import requestHelper from "../../helpers/requestHelper";
+import vendorFixtures from "../../fixtures/vendorFixtures";
 import testHelpers from "../../testHelpers";
 
 /**
  * Vendor Endpoint Negative Tests
  */
 
+let createdVendorId: number;
+
 describe("Vendor API (Negative)", () => {
     beforeAll(async () => {
         await testHelpers.truncateDatabase();
     });
+
+    beforeEach(async () => {
+        const vendorData = vendorFixtures.VENDOR_FIXTURES.openai();
+        const response = await requestHelper.post(
+            "/vendor/create.json",
+            vendorData,
+        );
+        createdVendorId = response.body.id;
+    });
+
     describe("POST /vendor/create.json", () => {
         it("should return error when required fields are missing", async () => {
             const vendorData = {
@@ -97,6 +110,56 @@ describe("Vendor API (Negative)", () => {
 
         it("should return error for zero ID", async () => {
             const response = await requestHelper.get("/vendor/0");
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+    });
+
+    describe("PUT /vendor/:id", () => {
+        it("should return error for non-existent vendor ID", async () => {
+            const updateData = { name: "Updated Name" };
+            const response = await requestHelper.put(
+                "/vendor/99999",
+                updateData,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+
+        it("should return error for invalid api_format", async () => {
+            const updateData = { api_format: "invalid-format" };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+        });
+
+        it("should return error for invalid ID format", async () => {
+            const updateData = { name: "Updated Name" };
+            const response = await requestHelper.put(
+                "/vendor/invalid-id",
+                updateData,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+
+        it("should return error for negative ID", async () => {
+            const updateData = { name: "Updated Name" };
+            const response = await requestHelper.put("/vendor/-1", updateData);
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+
+        it("should return error for zero ID", async () => {
+            const updateData = { name: "Updated Name" };
+            const response = await requestHelper.put("/vendor/0", updateData);
 
             expect(response.status).toBeGreaterThanOrEqual(400);
             expect(response.body).toHaveProperty("error");

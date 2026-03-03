@@ -157,4 +157,102 @@ describe("Vendor API (Positive)", () => {
             expect(response.body).toHaveProperty("updated_at");
         });
     });
+
+    describe("PUT /vendor/:id", () => {
+        it("should update vendor name", async () => {
+            const updateData = { name: "Updated Vendor Name" };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.id).toBe(createdVendorId);
+            expect(response.body.name).toBe("Updated Vendor Name");
+        });
+
+        it("should update vendor token", async () => {
+            const updateData = { token: "new-updated-token" };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.token).toBe("new-updated-token");
+        });
+
+        it("should update vendor url", async () => {
+            const updateData = {
+                url: "https://updated-api.example.com/v1/chat",
+            };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.url).toBe(
+                "https://updated-api.example.com/v1/chat",
+            );
+        });
+
+        it("should update vendor type", async () => {
+            const updateData = { type: "deepseek" };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.type).toBe("deepseek");
+        });
+
+        it("should update vendor api_format", async () => {
+            const updateData = { api_format: "anthropic" };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.api_format).toBe("anthropic");
+        });
+
+        it("should update multiple fields at once", async () => {
+            const updateData = {
+                name: "Multi-Updated Vendor",
+                type: "aliyun",
+                api_format: "openai",
+            };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.name).toBe("Multi-Updated Vendor");
+            expect(response.body.type).toBe("aliyun");
+            expect(response.body.api_format).toBe("openai");
+        });
+
+        it("should preserve unchanged fields", async () => {
+            const getResponse = await requestHelper.get(
+                `/vendor/${createdVendorId}`,
+            );
+            const originalUrl = getResponse.body.url;
+            const originalToken = getResponse.body.token;
+
+            const updateData = { name: "Name Change Only" };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.name).toBe("Name Change Only");
+            expect(response.body.url).toBe(originalUrl);
+            expect(response.body.token).toBe(originalToken);
+        });
+    });
 });

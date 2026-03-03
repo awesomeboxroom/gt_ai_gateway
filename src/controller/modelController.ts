@@ -42,9 +42,14 @@ async function listModels(c: Context) {
 }
 
 async function getModel(c: Context) {
-    const { id } = c.req.param();
+    const id = c.req.param("id");
+    const modelId = parseInt(id, 10);
 
-    const model = await SgModel.query().find(id);
+    if (isNaN(modelId)) {
+        return c.json({ error: "Invalid ID format" }, 400);
+    }
+
+    const model = await SgModel.query().find(modelId);
 
     if (!model) {
         return c.json({ error: "Model not found" }, 404);

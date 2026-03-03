@@ -24,6 +24,12 @@ app.use("*", dbMiddleware);
 // System
 app.get("/", systemController.welcome);
 
+// Vendor
+app.get("/vendor/list.json", vendorController.listVendors);
+app.get("/vendor/:id", vendorController.getVendor);
+app.post("/vendor/create.json", vendorController.createVendor);
+app.put("/vendor/:id", vendorController.updateVendor);
+
 // Model
 app.post("/model/create.json", modelController.createModel);
 app.get("/model/list.json", modelController.listModels);
@@ -33,11 +39,6 @@ app.get("/model/:id", modelController.getModel);
 app.get("/user/list.json", userController.listUsers);
 app.get("/user/:id", userController.getUser);
 app.post("/user/create.json", userController.createUser);
-
-// Vendor
-app.get("/vendor/list.json", vendorController.listVendors);
-app.get("/vendor/:id", vendorController.getVendor);
-app.post("/vendor/create.json", vendorController.createVendor);
 
 // Record
 app.get("/record/list.json", recordController.listRecords);
