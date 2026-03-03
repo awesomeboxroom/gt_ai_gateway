@@ -330,7 +330,7 @@ describe("Model API (Positive)", () => {
                 adminToken,
             );
 
-            expect(response.status).toBe(400);
+            expect(response.status).toBe(409);
             expect(response.body.error).toContain("already exists");
         });
 
@@ -361,7 +361,7 @@ describe("Model API (Positive)", () => {
                 adminToken,
             );
 
-            expect(duplicateResponse.status).toBe(400);
+            expect(duplicateResponse.status).toBe(409);
             expect(duplicateResponse.body.error).toContain("already exists");
         });
 
@@ -372,7 +372,7 @@ describe("Model API (Positive)", () => {
                 adminToken,
             );
 
-            expect(response.status).toBe(400);
+            expect(response.status).toBe(409);
             expect(response.body.error).toContain("already exists");
         });
 

@@ -1,4 +1,4 @@
-import { Hono, MiddlewareHandler } from "hono";
+import { Hono, MiddlewareHandler, HTTPException } from "hono";
 import gatewayController from "./controller/gatewayController";
 import modelController from "./controller/modelController";
 import userController from "./controller/userController";
@@ -23,8 +23,31 @@ const app = new Hono<{ Bindings: Env }>();
 // 注册数据库中间件（最前面）
 app.use("*", dbMiddleware);
 
-// 注册全局错误处理中间件
-app.use("*", errorHandler.errorHandler);
+// 注册全局错误处理
+app.onError((err, c) => {
+    const error = err as Record<string, unknown>;
+    const statusCode = error.statusCode as number;
+    const message = error.message as string;
+
+    if (statusCode && message) {
+        return c.json(
+            {
+                error: message,
+                code: error.code as string | undefined,
+            },
+            statusCode,
+        );
+    }
+
+    // 处理未知错误
+    return c.json(
+        {
+            error: "Internal server error",
+            message: String(err),
+        },
+        500,
+    );
+});
 
 // System
 app.get("/", systemController.welcome);
