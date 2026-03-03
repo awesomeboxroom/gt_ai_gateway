@@ -6,6 +6,7 @@
     "start": "npx tsx src/local.ts",
     "deploy": "wrangler deploy --minify",
     "test": "TEST_MODE=node vitest --config vitest.config.ts",
+    "test:real": "TEST_MODE=node TEST_REAL_API=true vitest --config vitest.config.ts",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "test:api": "vitest tests/api",

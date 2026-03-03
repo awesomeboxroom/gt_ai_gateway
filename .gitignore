@@ -32,3 +32,6 @@ lerna-debug.log*
 # misc
 .DS_Store
 .idea
+
+# test config (contains API keys)
+resource/test_real_config.json

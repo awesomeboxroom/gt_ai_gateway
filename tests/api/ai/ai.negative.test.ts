@@ -4,6 +4,7 @@ import { generateUser, generateOpenAIChatRequest, generateAnthropicMessageReques
 import { VENDOR_FIXTURES } from '../../fixtures/vendorFixtures'
 import { createRandomModel } from '../../fixtures/modelFixtures'
 import { truncateDatabase } from '../../testHelpers'
+import { getCurrentUpstreamConfig } from '../../config'
 
 /**
  * AI Endpoint Negative Tests
@@ -24,20 +25,23 @@ describe('AI Chat API (Negative)', () => {
     testUserToken = userResponse.body.token
 
     // Create OpenAI vendor
-    const openaiVendor = await post('/vendor/create.json', VENDOR_FIXTURES.openai)
+    const openaiVendor = await post('/vendor/create.json', VENDOR_FIXTURES.openai())
     openaiVendorId = openaiVendor.body.id
 
     // Create Anthropic vendor
-    const anthropicVendor = await post('/vendor/create.json', VENDOR_FIXTURES.anthropic)
+    const anthropicVendor = await post('/vendor/create.json', VENDOR_FIXTURES.anthropic())
     anthropicVendorId = anthropicVendor.body.id
 
+    // Get model names from config
+    const config = getCurrentUpstreamConfig()
+    openaiModelName = config.openai.model
+    anthropicModelName = config.anthropic.model
+
     // Create OpenAI model
-    const openaiModel = await post('/model/create.json', createRandomModel(openaiVendorId, 'gpt-3.5-turbo'))
-    openaiModelName = openaiModel.body.name
+    await post('/model/create.json', createRandomModel(openaiVendorId, openaiModelName))
 
     // Create Anthropic model
-    const anthropicModel = await post('/model/create.json', createRandomModel(anthropicVendorId, 'claude-3-haiku-20240307'))
-    anthropicModelName = anthropicModel.body.name
+    await post('/model/create.json', createRandomModel(anthropicVendorId, anthropicModelName))
   })
 
   describe('POST /v1/chat/completions', () => {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import { getCurrentUpstreamConfig, UPSTREAM_CONFIG } from '../config'
 
 /**
  * Mock Data Generator
@@ -38,11 +39,13 @@ export function generateVendor(overrides: Partial<{
  * Generate a mock OpenAI vendor
  */
 export function generateOpenAIVendor() {
+  const config = getCurrentUpstreamConfig()
   return generateVendor({
     type: 'other',
-    name: 'Mock OpenAI',
+    name: UPSTREAM_CONFIG.openai.enabled ? 'OpenAI' : 'Mock OpenAI',
     api_format: 'openai',
-    url: 'http://localhost:9999/chat/completions',
+    url: config.openai.url,
+    token: UPSTREAM_CONFIG.openai.enabled ? config.openai.apiKey : `openai-token-${randomUUID()}`,
   })
 }
 
@@ -50,11 +53,13 @@ export function generateOpenAIVendor() {
  * Generate a mock Anthropic vendor
  */
 export function generateAnthropicVendor() {
+  const config = getCurrentUpstreamConfig()
   return generateVendor({
     type: 'other',
-    name: 'Mock Anthropic',
+    name: UPSTREAM_CONFIG.anthropic.enabled ? 'Anthropic' : 'Mock Anthropic',
     api_format: 'anthropic',
-    url: 'http://localhost:9999/messages',
+    url: config.anthropic.url,
+    token: UPSTREAM_CONFIG.anthropic.enabled ? config.anthropic.apiKey : `anthropic-token-${randomUUID()}`,
   })
 }
 
@@ -76,8 +81,9 @@ export function generateOpenAIChatRequest(overrides: Partial<{
   messages: any[]
   stream: boolean
 }> = {}) {
+  const config = getCurrentUpstreamConfig()
   return {
-    model: overrides.model || 'gpt-3.5-turbo',
+    model: overrides.model || config.openai.model,
     messages: overrides.messages || [
       { role: 'user', content: 'Hello!' },
     ],
@@ -94,8 +100,9 @@ export function generateAnthropicMessageRequest(overrides: Partial<{
   stream: boolean
   max_tokens: number
 }> = {}) {
+  const config = getCurrentUpstreamConfig()
   return {
-    model: overrides.model || 'claude-3-haiku-20240307',
+    model: overrides.model || config.anthropic.model,
     messages: overrides.messages || [
       { role: 'user', content: 'Hello!' },
     ],

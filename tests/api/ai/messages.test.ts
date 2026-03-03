@@ -4,6 +4,7 @@ import { generateUser, generateAnthropicMessageRequest } from '../../helpers/moc
 import { VENDOR_FIXTURES } from '../../fixtures/vendorFixtures'
 import { createRandomModel } from '../../fixtures/modelFixtures'
 import { truncateDatabase } from '../../testHelpers'
+import { getCurrentUpstreamConfig } from '../../config'
 
 /**
  * AI Messages Endpoint Tests (Anthropic)
@@ -25,15 +26,18 @@ describe('AI Messages API (Anthropic)', () => {
         testUserToken = userResponse.body.token
 
         // Create Anthropic vendor
-        const anthropicVendor = await post('/vendor/create.json', VENDOR_FIXTURES.anthropic)
+        const anthropicVendor = await post('/vendor/create.json', VENDOR_FIXTURES.anthropic())
         console.log('Created vendor:', anthropicVendor.body)
         anthropicVendorId = anthropicVendor.body.id
 
+        // Get model name from config
+        const config = getCurrentUpstreamConfig()
+        anthropicModelName = config.anthropic.model
+
         // Create Anthropic model
-        const anthropicModel = await post('/model/create.json', createRandomModel(anthropicVendorId))
+        const anthropicModel = await post('/model/create.json', createRandomModel(anthropicVendorId, anthropicModelName))
         console.log('Created model:', anthropicModel.body)
         anthropicModelId = anthropicModel.body.id
-        anthropicModelName = anthropicModel.body.name
 
         // Verify vendor creation
         const vendorGet = await get(`/vendor/${anthropicVendorId}`)

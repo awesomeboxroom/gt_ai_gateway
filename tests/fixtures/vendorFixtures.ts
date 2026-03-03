@@ -1,23 +1,30 @@
 import { randomUUID } from 'crypto'
+import { getCurrentUpstreamConfig, UPSTREAM_CONFIG } from '../config'
 
 /**
  * Vendor Test Data Fixtures
  */
 
 export const VENDOR_FIXTURES = {
-  openai: {
-    type: 'other',
-    name: 'Mock OpenAI',
-    token: `openai-token-${randomUUID()}`,
-    url: 'http://localhost:9999/chat/completions',
-    api_format: 'openai',
+  openai: () => {
+    const config = getCurrentUpstreamConfig()
+    return {
+      type: 'other',
+      name: UPSTREAM_CONFIG.openai.enabled ? 'OpenAI' : 'Mock OpenAI',
+      token: UPSTREAM_CONFIG.openai.enabled ? config.openai.apiKey : `openai-token-${randomUUID()}`,
+      url: config.openai.url,
+      api_format: 'openai',
+    }
   },
-  anthropic: {
-    type: 'other',
-    name: 'Mock Anthropic',
-    token: `anthropic-token-${randomUUID()}`,
-    url: 'http://localhost:9999/messages',
-    api_format: 'anthropic',
+  anthropic: () => {
+    const config = getCurrentUpstreamConfig()
+    return {
+      type: 'other',
+      name: UPSTREAM_CONFIG.anthropic.enabled ? 'Anthropic' : 'Mock Anthropic',
+      token: UPSTREAM_CONFIG.anthropic.enabled ? config.anthropic.apiKey : `anthropic-token-${randomUUID()}`,
+      url: config.anthropic.url,
+      api_format: 'anthropic',
+    }
   },
   custom: {
     type: 'other',

@@ -15,7 +15,7 @@ describe('Vendor API (Positive)', () => {
     })
   describe('POST /vendor/create.json', () => {
     it('should create an OpenAI vendor', async () => {
-      const vendorData = VENDOR_FIXTURES.openai
+      const vendorData = VENDOR_FIXTURES.openai()
       const response = await post('/vendor/create.json', vendorData)
 
       expect(response.status).toBe(200)
@@ -32,7 +32,7 @@ describe('Vendor API (Positive)', () => {
     })
 
     it('should create an Anthropic vendor', async () => {
-      const vendorData = VENDOR_FIXTURES.anthropic
+      const vendorData = VENDOR_FIXTURES.anthropic()
       const response = await post('/vendor/create.json', vendorData)
 
       expect(response.status).toBe(200)
