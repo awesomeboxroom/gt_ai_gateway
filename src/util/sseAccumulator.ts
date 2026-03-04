@@ -23,6 +23,29 @@ interface SSEMessage {
     };
 }
 
+/**
+ * Anthropic 格式的 SSE 消息
+ */
+interface AnthropicSSEMessage {
+    type?: string;
+    message?: {
+        id?: string;
+        type?: string;
+        role?: string;
+        content?: any[];
+        model?: string;
+        stop_reason?: string | null;
+        usage?: {
+            input_tokens?: number;
+            output_tokens?: number;
+        };
+    };
+    delta?: {
+        text?: string;
+    };
+    index?: number;
+}
+
 interface AccumulatedResponse {
     id?: string;
     object?: string;
@@ -43,16 +66,34 @@ interface AccumulatedResponse {
     };
 }
 
+type SSEFormat = 'openai' | 'anthropic';
+
 class SSEAccumulator {
+    private format: SSEFormat;
     private response: AccumulatedResponse = {
         choices: [{ index: 0, message: { content: "" }, finish_reason: null }],
     };
+
+    constructor(format: SSEFormat = 'openai') {
+        this.format = format;
+    }
 
     /**
      * 添加一条 SSE 消息
      * @param msg - SSE 消息对象
      */
-    addMessage(msg: SSEMessage): void {
+    addMessage(msg: SSEMessage | AnthropicSSEMessage): void {
+        if (this.format === 'anthropic') {
+            this.handleAnthropicMessage(msg as AnthropicSSEMessage);
+        } else {
+            this.handleOpenAIMessage(msg as SSEMessage);
+        }
+    }
+
+    /**
+     * 处理 OpenAI 格式的消息
+     */
+    private handleOpenAIMessage(msg: SSEMessage): void {
         // 保存基本信息（只保存一次）
         if (msg.id) this.response.id = msg.id;
         if (msg.object) this.response.object = msg.object;
@@ -96,6 +137,30 @@ class SSEAccumulator {
         // 保存 usage 信息（最后一个消息中才包含）
         if (msg.usage) {
             this.response.usage = msg.usage;
+        }
+    }
+
+    /**
+     * 处理 Anthropic 格式的消息
+     */
+    private handleAnthropicMessage(msg: AnthropicSSEMessage): void {
+        // 保存基本信息
+        if (msg.message?.id) this.response.id = msg.message.id;
+        if (msg.message?.model) this.response.model = msg.message.model;
+        if (msg.message?.role) this.response.choices[0].message.role = msg.message.role;
+        if (msg.message?.stop_reason !== undefined) {
+            this.response.choices[0].finish_reason = msg.message.stop_reason;
+        }
+        if (msg.message?.usage) {
+            this.response.usage = {
+                prompt_tokens: msg.message.usage.input_tokens,
+                completion_tokens: msg.message.usage.output_tokens,
+                total_tokens: (msg.message.usage.input_tokens || 0) + (msg.message.usage.output_tokens || 0),
+            };
+        }
+        // 累积文本内容
+        if (msg.delta?.text) {
+            this.response.choices[0].message.content += msg.delta.text;
         }
     }
 

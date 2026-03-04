@@ -64,7 +64,9 @@ async function sendRequest(
     let isStreamResponse: boolean = true; // 是否为流式响应
     let upstreamStatusCode: StatusCode | null = null; // 上游响应状态码
     let upstreamResponseText: string | null = null; // 上游响应文本（非流式）
-    const accumulator = new sseAccumulator.SSEAccumulator(); // SSE 消息累加器
+    const accumulator = new sseAccumulator.SSEAccumulator(
+        vendor.api_format === ApiFormat.ANTHROPIC ? 'anthropic' : 'openai'
+    ); // SSE 消息累加器
 
     // 自定义 Promise，用于等待响应头到达（判断是否为流式）
     let getResponseHeaderPromise: enhanced.CustomPromise<void> = new enhanced.CustomPromise();
