@@ -22,6 +22,7 @@ export enum ApiFormat {
 export enum UserType {
     NORMAL = "normal",
     ADMIN = "admin",
+    ROOT = "root",
 }
 
 export const ROOT_USER_ID = -1;

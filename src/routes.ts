@@ -18,12 +18,16 @@ interface Env {
     ASSETS: Fetcher;
 }
 
+type Variables = {
+    user_type: string;
+};
+
 const dbMiddleware: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
     await ormService.prepareDBConnection(c.env?.DB);
     await next();
 };
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // 注册数据库中间件（最前面）
 app.use("*", dbMiddleware);

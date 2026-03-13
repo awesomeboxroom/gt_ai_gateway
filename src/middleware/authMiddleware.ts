@@ -14,6 +14,7 @@ const requireAdmin: MiddlewareHandler = async (c, next) => {
 
     // 检查是否为 root token
     if (userService.isRootToken(token, rootToken)) {
+        c.set("user_type", UserType.ROOT);
         await next();
         return;
     }
@@ -23,6 +24,8 @@ const requireAdmin: MiddlewareHandler = async (c, next) => {
     if (!user) {
         return c.json({ error: "Invalid token" }, 401);
     }
+
+    c.set("user_type", user.type);
 
     if (user.type !== UserType.ADMIN) {
         return c.json({ error: "Admin access required" }, 403);

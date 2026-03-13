@@ -8,7 +8,7 @@
             <a-dropdown>
                 <a-button type="text" class="user-btn">
                     <UserOutlined />
-                    <span class="username">Admin</span>
+                    <span class="username">{{ authStore.userType || 'Admin' }}</span>
                 </a-button>
                 <template #overlay>
                     <a-menu>

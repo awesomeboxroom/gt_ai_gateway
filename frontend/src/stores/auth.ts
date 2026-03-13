@@ -4,6 +4,7 @@ import { welcome } from '@/api/system';
 
 export const useAuthStore = defineStore('auth', () => {
     const token = ref<string>(localStorage.getItem('adminToken') || '');
+    const userType = ref<string>('');
     const isLoading = ref(false);
 
     const isAuthenticated = computed(() => !!token.value);
@@ -15,6 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     function clearToken() {
         token.value = '';
+        userType.value = '';
         localStorage.removeItem('adminToken');
     }
 
@@ -23,7 +25,12 @@ export const useAuthStore = defineStore('auth', () => {
 
         isLoading.value = true;
         try {
-            await welcome();
+            const data = await welcome();
+            if (data && data.user_type) {
+                userType.value = data.user_type;
+            } else {
+                userType.value = 'admin'; // Default fallback
+            }
             return true;
         } catch {
             clearToken();
@@ -44,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     return {
         token,
+        userType,
         isLoading,
         isAuthenticated,
         setToken,

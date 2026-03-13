@@ -11,8 +11,18 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import AppHeader from './AppHeader.vue';
 import AppSidebar from './AppSidebar.vue';
+import { useAuthStore } from '@/stores/auth';
+
+const authStore = useAuthStore();
+
+onMounted(() => {
+    if (authStore.isAuthenticated && !authStore.userType) {
+        authStore.validateToken();
+    }
+});
 </script>
 
 <style scoped>

@@ -1,6 +1,6 @@
 import type { BaseEntity, TableQuery } from './index';
 
-export type UserType = 'normal' | 'admin';
+export type UserType = 'normal' | 'admin' | 'root';
 
 export interface User extends BaseEntity {
     name: string;

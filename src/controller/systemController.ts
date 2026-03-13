@@ -54,6 +54,7 @@ async function status(c: Context) {
         return c.json({
             status: "ok",
             mode: ormService.mode,
+            user_type: c.get("user_type"),
             statistics: {
                 users: userCount,
                 vendors: vendorCount,
