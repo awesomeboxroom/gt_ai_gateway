@@ -140,7 +140,7 @@ docker run -d \
 
 ```bash
 # 拉取最新镜像
-docker pull your-dockerhub-username/serverless_ai_gateway:latest
+docker pull alexazhou/serverless_ai_gateway:latest
 
 # 运行容器
 docker run -d \
@@ -148,7 +148,7 @@ docker run -d \
     -p 8787:8787 \
     -v $(pwd)/data:/app/data \
     -e ROOT_TOKEN=your-secret-root-token \
-    your-dockerhub-username/serverless_ai_gateway:latest
+    alexazhou/serverless_ai_gateway:latest
 ```
 
 ### 测试
