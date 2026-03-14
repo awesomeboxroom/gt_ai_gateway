@@ -241,16 +241,19 @@ describe("AI Chat API", () => {
                 "{\"city\":\"San Francisco\",\"unit\":\"celsius\"}",
             );
 
-            const { targetPath, content: streamLog } =
-                await streamLogHelper.moveStreamLogToResource(
-                    latestRecord.id,
-                    "openai-tool-call-stream.log",
-                );
+            // Stream log only available in node mode and when enabled
+            if (config.TEST_MODE === "node" && process.env.STREAM_LOG_ENABLED === "true") {
+                const { targetPath, content: streamLog } =
+                    await streamLogHelper.moveStreamLogToResource(
+                        latestRecord.id,
+                        "openai-tool-call-stream.log",
+                    );
 
-            expect(targetPath.endsWith("tests/resource/openai-tool-call-stream.log")).toBe(true);
-            expect(streamLog).toContain("\"tool_calls\"");
-            expect(streamLog).toContain("\"get_weather\"");
-            expect(streamLog).toContain("\"finish_reason\":\"tool_calls\"");
+                expect(targetPath.endsWith("tests/resource/openai-tool-call-stream.log")).toBe(true);
+                expect(streamLog).toContain("\"tool_calls\"");
+                expect(streamLog).toContain("\"get_weather\"");
+                expect(streamLog).toContain("\"finish_reason\":\"tool_calls\"");
+            }
         }, 30000);
 
         it("should handle multiple messages in chat request", async () => {

@@ -245,16 +245,19 @@ describe("AI Messages API (Anthropic)", () => {
                 unit: "celsius",
             });
 
-            const { targetPath, content: streamLog } =
-                await streamLogHelper.moveStreamLogToResource(
-                    latestRecord.id,
-                    "anthropic-tool-use-stream.log",
-                );
+            // Stream log only available in node mode and when enabled
+            if (config.TEST_MODE === "node" && process.env.STREAM_LOG_ENABLED === "true") {
+                const { targetPath, content: streamLog } =
+                    await streamLogHelper.moveStreamLogToResource(
+                        latestRecord.id,
+                        "anthropic-tool-use-stream.log",
+                    );
 
-            expect(targetPath.endsWith("tests/resource/anthropic-tool-use-stream.log")).toBe(true);
-            expect(streamLog).toContain("\"tool_use\"");
-            expect(streamLog).toContain("\"input_json_delta\"");
-            expect(streamLog).toContain("\"stop_reason\":\"tool_use\"");
+                expect(targetPath.endsWith("tests/resource/anthropic-tool-use-stream.log")).toBe(true);
+                expect(streamLog).toContain("\"tool_use\"");
+                expect(streamLog).toContain("\"input_json_delta\"");
+                expect(streamLog).toContain("\"stop_reason\":\"tool_use\"");
+            }
         }, 30000);
 
         it("should handle multiple messages in request", async () => {

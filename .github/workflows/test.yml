@@ -10,6 +10,9 @@ on:
       - master
       - main
 
+env:
+  STREAM_LOG_ENABLED: true
+
 jobs:
   test-node:
     name: Test (Node Mode)

@@ -310,11 +310,12 @@ class SSEAccumulator {
             return;
         }
 
-        // message_delta 事件：更新 stop_reason 和最终 usage
-        if (eventType === 'message_delta') {
-            // stop_reason 在 delta 对象中
-            if (msg.delta?.stop_reason !== undefined) {
-                this.response.choices[0].finish_reason = msg.delta.stop_reason;
+        // message_delta/message_stop 事件：更新 stop_reason 和最终 usage
+        if (eventType === 'message_delta' || eventType === 'message_stop') {
+            // stop_reason 可能在 delta 对象中（message_delta）或直接在消息中
+            const stopReason = msg.delta?.stop_reason ?? msg.message?.stop_reason;
+            if (stopReason !== undefined) {
+                this.response.choices[0].finish_reason = stopReason;
             }
 
             // 更新最终的 usage（output_tokens 在这里最终确定）

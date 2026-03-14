@@ -545,10 +545,19 @@ function handleAnthropicStreamResponse(res: ServerResponse, data: any): void {
     let i = 0;
     const interval = setInterval(() => {
         if (i >= chunks.length) {
-            // Send message_stop event with final usage
+            // Send message_delta event with final usage
+            const deltaEvent = {
+                type: "message_delta",
+                delta: { stop_reason: "end_turn", stop_sequence: null },
+                usage: { output_tokens: 12 },
+            };
+            res.write(
+                `event: message_delta\ndata: ${JSON.stringify(deltaEvent)}\n\n`,
+            );
+
+            // Send message_stop event
             const stopEvent = {
                 type: "message_stop",
-                usage: { input_tokens: 8, output_tokens: 12 },
             };
             res.write(
                 `event: message_stop\ndata: ${JSON.stringify(stopEvent)}\n\n`,
