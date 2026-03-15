@@ -1,5 +1,5 @@
 import request from '../utils/request';
-import type { User, CreateUserRequest } from '../types/user';
+import type { User, CreateUserRequest, UpdateUserRequest } from '../types/user';
 
 export async function listUsers(params?: any): Promise<User[]> {
     return request.get('/user/list.json', { params });
@@ -15,4 +15,8 @@ export async function getUser(id: number): Promise<User> {
 
 export async function createUser(data: CreateUserRequest): Promise<User> {
     return request.post('/user/create.json', data);
+}
+
+export async function updateUser(id: number, data: UpdateUserRequest): Promise<User> {
+    return request.put(`/user/${id}`, data);
 }

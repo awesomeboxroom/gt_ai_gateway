@@ -1,0 +1,2 @@
+# 允许 Gemini 读取被 .gitignore 忽略的 .dev.vars 文件
+!.dev.vars

@@ -48,15 +48,21 @@
                     </a-tag>
                 </template>
                 <template v-if="column.key === 'action'">
-                    <a-button type="link" @click="handleView(record)">
-                        查看
-                    </a-button>
+                    <a-space>
+                        <a-button type="link" @click="handleView(record)">
+                            查看
+                        </a-button>
+                        <a-button type="link" @click="handleEdit(record)">
+                            编辑
+                        </a-button>
+                    </a-space>
                 </template>
             </template>
         </a-table>
     </div>
 
     <DialogCreate ref="createDialogRef" @success="handleCreateSuccess" />
+    <DialogEdit ref="editDialogRef" @success="handleEditSuccess" />
 </template>
 
 <script setup lang="ts">
@@ -66,6 +72,7 @@ import { listUsers } from '@/api/user';
 import { useTable } from '@/composables/useTable';
 import TokenDisplay from '@/components/common/TokenDisplay.vue';
 import DialogCreate from './DialogCreate.vue';
+import DialogEdit from './DialogEdit.vue';
 import type { User } from '@/types/user';
 
 const router = useRouter();
@@ -73,13 +80,14 @@ const router = useRouter();
 const { loading, data, pagination, searchForm, setPage, clearData } = useTable<User>();
 
 const createDialogRef = ref();
+const editDialogRef = ref();
 
 const columns = [
     { title: 'ID', key: 'id', dataIndex: 'id', width: 80 },
     { title: '用户名', key: 'name', dataIndex: 'name' },
     { title: 'Token', key: 'token', dataIndex: 'token' },
     { title: '类型', key: 'type', dataIndex: 'type', width: 100 },
-    { title: '操作', key: 'action', width: 80, fixed: 'right' as const },
+    { title: '操作', key: 'action', width: 120, fixed: 'right' as const },
 ];
 
 onMounted(() => {
@@ -128,6 +136,14 @@ function handleCreateSuccess() {
 
 function handleView(record: User) {
     router.push(`/user/${record.id}`);
+}
+
+function handleEdit(record: User) {
+    editDialogRef.value?.open(record);
+}
+
+function handleEditSuccess() {
+    loadData();
 }
 </script>
 

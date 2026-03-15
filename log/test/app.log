@@ -1,0 +1,158 @@
+[2026-03-15T05:13:58.685Z] [SERVER STDOUT] [dotenv@17.3.1] injecting env (1) from .dev.vars -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[2026-03-15T05:13:58.686Z] [SERVER STDOUT] Starting server...
+[2026-03-15T05:13:58.703Z] [SERVER STDOUT] Server listening on http://localhost:3000
+[2026-03-15T05:13:58.712Z] [SERVER STDOUT] ROOT_TOKEN: root-token-123
+[2026-03-15T05:13:58.733Z] [SERVER STDOUT] [userController] Creating user: { name: 'Admin User', token: 'admin-token-123', type: 'admin' }
+[2026-03-15T05:13:58.755Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Admin User",
+  "token": "admin-token-123",
+  "type": "admin",
+  "updated_at": "2026-03-15T05:13:58.000Z",
+  "created_at": "2026-03-15T05:13:58.000Z",
+  "id": 1
+}
+[2026-03-15T05:13:59.217Z] [SERVER STDOUT] [userController] Creating user: { name: 'Admin User', token: 'admin-token-123', type: 'admin' }
+[2026-03-15T05:13:59.219Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Admin User",
+  "token": "admin-token-123",
+  "type": "admin",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 2
+}
+[2026-03-15T05:13:59.229Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.233Z] [SERVER STDOUT] [userController] Creating user: {
+  name: 'Test User with Custom Token',
+  token: 'custom-token-123',
+  type: undefined
+}
+[2026-03-15T05:13:59.235Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Test User with Custom Token",
+  "token": "custom-token-123",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 3
+}
+[2026-03-15T05:13:59.240Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.242Z] [SERVER STDOUT] [userController] Creating user: {
+  name: 'Auto Token User',
+  token: '89794f8e-ae7f-49b3-be95-91dd76978096',
+  type: undefined
+}
+[2026-03-15T05:13:59.244Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Auto Token User",
+  "token": "89794f8e-ae7f-49b3-be95-91dd76978096",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 4
+}
+[2026-03-15T05:13:59.247Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.249Z] [SERVER STDOUT] [userController] Creating user: {
+  name: 'Same Name User',
+  token: '19929ad4-231c-48cd-ae7e-5c8dc33740b7',
+  type: undefined
+}
+[2026-03-15T05:13:59.251Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Same Name User",
+  "token": "19929ad4-231c-48cd-ae7e-5c8dc33740b7",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 5
+}
+[2026-03-15T05:13:59.253Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.255Z] [SERVER STDOUT] [userController] Creating user: {
+  name: 'Same Name User',
+  token: '8a3c5b51-d453-47fc-8c51-684d0bc7324f',
+  type: undefined
+}
+[2026-03-15T05:13:59.257Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Same Name User",
+  "token": "8a3c5b51-d453-47fc-8c51-684d0bc7324f",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 6
+}
+[2026-03-15T05:13:59.261Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.263Z] [SERVER STDOUT] [userController] Creating user: {
+  name: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  token: 'f28d3749-706b-4234-8ddb-4897cd626ff2',
+  type: undefined
+}
+[2026-03-15T05:13:59.264Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "token": "f28d3749-706b-4234-8ddb-4897cd626ff2",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 7
+}
+[2026-03-15T05:13:59.267Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.269Z] [SERVER STDOUT] [userController] Creating user: {
+  name: 'Test User',
+  token: '26408bf9-d567-479d-87cd-95592ccbd0c0',
+  type: undefined
+}
+[2026-03-15T05:13:59.271Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Test User",
+  "token": "26408bf9-d567-479d-87cd-95592ccbd0c0",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 8
+}
+[2026-03-15T05:13:59.274Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.278Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.283Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.286Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.289Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.292Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.293Z] [SERVER STDOUT] [userController] Creating user: {
+  name: 'User To Update',
+  token: 'original-token-12345',
+  type: undefined
+}
+[2026-03-15T05:13:59.295Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "User To Update",
+  "token": "original-token-12345",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 9
+}
+[2026-03-15T05:13:59.298Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.304Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.309Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.313Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.318Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.321Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.325Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.328Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.331Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.336Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.732Z] [SERVER STDOUT] [userController] Creating user: { name: 'Admin User', token: 'admin-token-123', type: 'admin' }
+[2026-03-15T05:13:59.734Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Admin User",
+  "token": "admin-token-123",
+  "type": "admin",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 10
+}
+[2026-03-15T05:13:59.736Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.737Z] [SERVER STDOUT] [userController] Creating user: { name: 'Test User', token: 'test-token-123', type: undefined }
+[2026-03-15T05:13:59.738Z] [SERVER STDOUT] [userController] User created successfully: {
+  "name": "Test User",
+  "token": "test-token-123",
+  "type": "normal",
+  "updated_at": "2026-03-15T05:13:59.000Z",
+  "created_at": "2026-03-15T05:13:59.000Z",
+  "id": 11
+}
+[2026-03-15T05:13:59.741Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.745Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.747Z] [SERVER STDOUT] getUser admin-token-123
+[2026-03-15T05:13:59.750Z] [SERVER STDOUT] getUser admin-token-123

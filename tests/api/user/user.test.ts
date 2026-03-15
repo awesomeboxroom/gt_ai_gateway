@@ -155,4 +155,137 @@ describe("User API (Positive)", () => {
             expect(response.body).toHaveProperty("updated_at");
         });
     });
+
+    describe("PUT /user/:id", () => {
+        let userToUpdateId: number;
+        let originalToken: string;
+
+        beforeAll(async () => {
+            const userData = {
+                name: "User To Update",
+                token: "original-token-12345",
+            };
+            const response = await requestHelper.post(
+                "/user/create.json",
+                userData,
+                adminToken,
+            );
+            userToUpdateId = response.body.id;
+            originalToken = response.body.token;
+        });
+
+        it("should update user name", async () => {
+            const updateData = { name: "Updated User Name" };
+            const response = await requestHelper.put(
+                `/user/${userToUpdateId}`,
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.id).toBe(userToUpdateId);
+            expect(response.body.name).toBe(updateData.name);
+            expect(response.body.token).toBe(originalToken); // Token should remain unchanged
+        });
+
+        it("should update token with new value", async () => {
+            const newToken = "new-token-67890";
+            const updateData = { token: newToken };
+            const response = await requestHelper.put(
+                `/user/${userToUpdateId}`,
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.id).toBe(userToUpdateId);
+            expect(response.body.token).toBe(newToken);
+            expect(response.body.name).toBe("Updated User Name"); // Name should remain unchanged
+        });
+
+        it("should regenerate token when token is empty string", async () => {
+            // First set a known token
+            const oldToken = "token-before-regenerate";
+            await requestHelper.put(
+                `/user/${userToUpdateId}`,
+                { token: oldToken },
+                adminToken,
+            );
+
+            // Then regenerate with empty string
+            const regenerateData = { token: "" };
+            const response = await requestHelper.put(
+                `/user/${userToUpdateId}`,
+                regenerateData,
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.id).toBe(userToUpdateId);
+            expect(response.body.token).toBeTruthy();
+            expect(response.body.token).not.toBe(oldToken); // Token should be new
+            expect(response.body.token.length).toBeGreaterThan(0);
+        });
+
+        it("should regenerate token when token is null", async () => {
+            const response = await requestHelper.get(`/user/${userToUpdateId}`, adminToken);
+            const oldToken = response.body.token;
+
+            const regenerateData = { token: null };
+            const response2 = await requestHelper.put(
+                `/user/${userToUpdateId}`,
+                regenerateData,
+                adminToken,
+            );
+
+            expect(response2.status).toBe(200);
+            expect(response2.body.token).toBeTruthy();
+            expect(response2.body.token).not.toBe(oldToken);
+        });
+
+        it("should not change anything when no fields provided", async () => {
+            const response1 = await requestHelper.get(`/user/${userToUpdateId}`, adminToken);
+            const originalName = response1.body.name;
+            const originalToken = response1.body.token;
+
+            const updateData = {};
+            const response2 = await requestHelper.put(
+                `/user/${userToUpdateId}`,
+                updateData,
+                adminToken,
+            );
+
+            expect(response2.status).toBe(200);
+            expect(response2.body.name).toBe(originalName);
+            expect(response2.body.token).toBe(originalToken);
+        });
+
+        it("should update both name and token simultaneously", async () => {
+            const newToken = "simultaneous-update-token";
+            const updateData = {
+                name: "Simultaneously Updated User",
+                token: newToken,
+            };
+            const response = await requestHelper.put(
+                `/user/${userToUpdateId}`,
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.id).toBe(userToUpdateId);
+            expect(response.body.name).toBe(updateData.name);
+            expect(response.body.token).toBe(newToken);
+        });
+
+        it("should return user with all fields after update", async () => {
+            const response = await requestHelper.get(`/user/${userToUpdateId}`, adminToken);
+
+            expect(response.body).toHaveProperty("id");
+            expect(response.body).toHaveProperty("name");
+            expect(response.body).toHaveProperty("token");
+            expect(response.body).toHaveProperty("created_at");
+            expect(response.body).toHaveProperty("updated_at");
+        });
+    });
 });

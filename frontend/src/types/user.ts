@@ -14,6 +14,11 @@ export interface CreateUserRequest {
     type?: UserType;
 }
 
+export interface UpdateUserRequest {
+    name?: string;
+    token?: string;
+}
+
 export interface UserQuery extends TableQuery {
     type?: UserType;
 }

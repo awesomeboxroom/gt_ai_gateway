@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { message } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
 
 const instance: AxiosInstance = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || '',

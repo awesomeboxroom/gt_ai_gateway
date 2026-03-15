@@ -168,7 +168,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { message } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
 import { useApiTestStore } from '@/stores/apiTest';
 import { listModels } from '@/api/model';
 import StreamOutput from '@/components/common/StreamOutput.vue';

@@ -63,4 +63,80 @@ describe("User API (Negative)", () => {
             expect(response.body).toHaveProperty("error");
         });
     });
+
+    describe("PUT /user/:id", () => {
+        let adminToken: string;
+        let existingUserId: number;
+
+        beforeAll(async () => {
+            const { setupAdminUser } = await import("../../globalSetup");
+            adminToken = await setupAdminUser();
+
+            const userData = { name: "Test User", token: "test-token-123" };
+            const response = await requestHelper.post(
+                "/user/create.json",
+                userData,
+                adminToken,
+            );
+            existingUserId = response.body.id;
+        });
+
+        it("should return error for non-existent user ID", async () => {
+            const updateData = { name: "New Name" };
+            const response = await requestHelper.put(
+                "/user/99999",
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+
+        it("should return error for invalid ID format (string)", async () => {
+            const updateData = { name: "New Name" };
+            const response = await requestHelper.put(
+                "/user/invalid-id",
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+
+        it("should return error for negative ID", async () => {
+            const updateData = { name: "New Name" };
+            const response = await requestHelper.put(
+                "/user/-1",
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+
+        it("should return error for zero ID", async () => {
+            const updateData = { name: "New Name" };
+            const response = await requestHelper.put(
+                "/user/0",
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+            expect(response.body).toHaveProperty("error");
+        });
+
+        it("should require admin authentication", async () => {
+            const updateData = { name: "New Name" };
+            const response = await requestHelper.put(
+                `/user/${existingUserId}`,
+                updateData,
+            );
+
+            expect(response.status).toBeGreaterThanOrEqual(400);
+        });
+    });
 });

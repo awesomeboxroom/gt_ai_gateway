@@ -69,9 +69,45 @@ async function createUser(c: Context) {
     }
 }
 
+async function updateUser(c: Context) {
+    const id = c.req.param("id");
+    const userId = parseInt(id, 10);
+
+    if (isNaN(userId)) {
+        return c.json({ error: "Invalid ID format" }, 400);
+    }
+
+    const user = await SgUser.query().find(userId);
+
+    if (!user) {
+        return c.json({ error: "User not found" }, 404);
+    }
+
+    const body = await c.req.json();
+    const { name, token } = body;
+
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) {
+        updateData.name = name;
+    }
+    if (token !== undefined) {
+        updateData.token = token === null || token === "" ? crypto.randomUUID() : token;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+        return c.json(user);
+    }
+
+    await user.update(updateData);
+
+    const updatedUser = await SgUser.query().find(userId);
+    return c.json(updatedUser);
+}
+
 export default {
     listUsers,
     getUser,
     getUsersByIds,
     createUser,
+    updateUser,
 };

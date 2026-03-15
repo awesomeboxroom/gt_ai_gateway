@@ -1,4 +1,4 @@
-import { message } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
 
 export interface ValidationRule {
     required?: boolean;

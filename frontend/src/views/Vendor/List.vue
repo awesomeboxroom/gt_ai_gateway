@@ -78,7 +78,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { message, Modal } from 'ant-design-vue';
+import { message, Modal } from 'ant-design-vue/es';
 import { listVendors, deleteVendor } from '@/api/vendor';
 import { useTable } from '@/composables/useTable';
 import DialogCreate from './DialogCreate.vue';

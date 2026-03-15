@@ -1,0 +1,15 @@
+curl --location 'https://dashscope.aliyuncs.com/apps/anthropic/v1/messages' \
+--header 'Content-Type: application/json' \
+--header 'x-api-key: sk-36765a94e6d74b4db65cf5c5585b6844' \
+--header 'anthropic-version: 2023-06-01' \
+--data '{
+    "model": "qwen-plus",
+    "system": "You are a helpful assistant.",
+    "max_tokens": 1024,
+    "messages": [
+        {
+            "role": "user",
+            "content": "用 python 写一个简单的快速排序，尽可能短"
+        }
+    ]
+}'

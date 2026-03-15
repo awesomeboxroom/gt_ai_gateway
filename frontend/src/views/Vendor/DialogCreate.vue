@@ -77,7 +77,8 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { message, type FormInstance } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
+import type { FormInstance } from 'ant-design-vue/es';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue';
 import { createVendor } from '@/api/vendor';
 import type { Vendor } from '@/types/vendor';

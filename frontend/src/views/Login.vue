@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { message } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
 import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();

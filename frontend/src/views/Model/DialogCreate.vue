@@ -39,7 +39,8 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { message, type FormInstance } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
+import type { FormInstance } from 'ant-design-vue/es';
 import { createModel } from '@/api/model';
 import { listVendors } from '@/api/vendor';
 import type { Model } from '@/types/model';

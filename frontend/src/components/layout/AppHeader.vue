@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { message } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
 import { UserOutlined, LogoutOutlined } from '@ant-design/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 

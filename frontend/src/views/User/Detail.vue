@@ -3,7 +3,11 @@
         <a-page-header
             title="用户详情"
             @back="handleBack"
-        />
+        >
+            <template #extra>
+                <a-button type="primary" @click="handleEdit">编辑</a-button>
+            </template>
+        </a-page-header>
         <a-card v-if="user" :loading="loading">
             <a-descriptions :column="1" bordered>
                 <a-descriptions-item label="ID">{{ user.id }}</a-descriptions-item>
@@ -25,6 +29,8 @@
             </a-descriptions>
         </a-card>
     </div>
+
+    <DialogEdit ref="editDialogRef" @success="handleEditSuccess" />
 </template>
 
 <script setup lang="ts">
@@ -33,6 +39,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { getUser } from '@/api/user';
 import { formatDate } from '@/utils/format';
 import TokenDisplay from '@/components/common/TokenDisplay.vue';
+import DialogEdit from './DialogEdit.vue';
 import type { User } from '@/types/user';
 
 const route = useRoute();
@@ -40,6 +47,7 @@ const router = useRouter();
 
 const loading = ref(false);
 const user = ref<User | null>(null);
+const editDialogRef = ref();
 
 onMounted(async () => {
     const id = Number(route.params.id);
@@ -61,6 +69,16 @@ async function loadUser(id: number) {
 
 function handleBack() {
     router.push('/user');
+}
+
+function handleEdit() {
+    if (user.value) {
+        editDialogRef.value?.open(user.value);
+    }
+}
+
+function handleEditSuccess(updatedUser: User) {
+    user.value = updatedUser;
 }
 </script>
 

@@ -106,7 +106,7 @@ import { DownloadOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-desig
 import { useRecordStore } from '@/stores/record';
 import { formatDate } from '@/utils/format';
 import JsonViewer from '@/components/common/JsonViewer.vue';
-import { message } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
 
 const router = useRouter();
 const route = useRoute();

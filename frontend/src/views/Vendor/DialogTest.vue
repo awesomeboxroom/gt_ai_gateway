@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { message } from 'ant-design-vue';
+import { message } from 'ant-design-vue/es';
 import { testVendor } from '@/api/vendor';
 import { listModels } from '@/api/model';
 import type { Vendor } from '@/types/vendor';

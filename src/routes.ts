@@ -86,6 +86,7 @@ app.get("/user/list.json", authMiddleware.requireAdmin, userController.listUsers
 app.post("/user/batch.json", authMiddleware.requireAdmin, userController.getUsersByIds);
 app.get("/user/:id", authMiddleware.requireAdmin, userController.getUser);
 app.post("/user/create.json", authMiddleware.requireAdmin, userController.createUser);
+app.put("/user/:id", authMiddleware.requireAdmin, userController.updateUser);
 
 // Record (需要管理员权限)
 app.get("/record/list.json", authMiddleware.requireAdmin, recordController.listRecords);
