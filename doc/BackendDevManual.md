@@ -75,6 +75,7 @@ RECORD_LOG_ENABLED=false
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `RECORD_LOG_ENABLED` | `false` | 是否在 `recordService` 中输出请求记录创建/更新日志，适合本地排查 |
+| `LOG_DIR` | `<项目根目录>/log` | 应用日志目录，支持绝对或相对路径。Docker 部署时默认为 `/app/data/log` |
 
 ---
 
@@ -137,19 +138,20 @@ Wrangler 会启动本地开发服务器，模拟 Cloudflare Workers 环境
 
 #### 本地目录说明
 
-在 Node 本地模式下，日志目录位于项目根目录：
+在 Node 本地模式下，日志目录位于项目根目录（可通过 `LOG_DIR` 环境变量自定义）：
 
 ```text
-log/
-├── app-YYYY-MM-DD.log      # 应用日志
+log/                      # 或 LOG_DIR 指定的目录
+├── app-YYYY-MM-DD.log    # 应用日志
 └── stream/
-    └── <record.id>.log     # 对应一次流式请求的原始 SSE 日志
+    └── <record.id>.log   # 对应一次流式请求的原始 SSE 日志
 ```
 
 说明：
 - `record.id` 与数据库 `record` 表主键一致，可通过后台请求记录页面或接口查询后定位对应日志文件。
 - 非流式请求不会生成 `log/stream/*.log` 文件。
 - 如果目录不存在，服务会在首次处理流式请求时自动创建。
+- Docker 部署模式下，日志默认输出到 `/app/data/log`，挂载到宿主机的 `./data/log`。
 
 ## 数据库配置与管理
 
@@ -233,50 +235,15 @@ npm run backend:deploy
 
 ### Docker 部署
 
-#### 使用 Docker Compose
+Docker 部署相关内容已单独整理到 `doc/DockerDeployment.md`，包括：
 
-创建 `.env` 文件配置环境变量：
+- Docker Compose 部署
+- Docker 直接构建和运行
+- 使用 Docker Hub 镜像
+- 数据持久化配置
+- 健康检查和故障排查
 
-```bash
-ROOT_TOKEN=your-secret-root-token
-PORT=8787
-DB_PATH=/app/data/local.db
-```
-
-启动服务：
-```bash
-docker-compose up -d
-```
-
-#### 使用 Docker 直接构建和运行
-
-```bash
-# 构建镜像
-docker build -t serverless_ai_gateway .
-
-# 运行容器
-docker run -d \
-    --name serverless_ai_gateway \
-    -p 8787:8787 \
-    -v $(pwd)/data:/app/data \
-    -e ROOT_TOKEN=your-secret-root-token \
-    serverless_ai_gateway
-```
-
-#### 使用 Docker Hub
-
-```bash
-# 拉取最新镜像
-docker pull alexazhou/serverless_ai_gateway:latest
-
-# 运行容器
-docker run -d \
-    --name serverless_ai_gateway \
-    -p 8787:8787 \
-    -v $(pwd)/data:/app/data \
-    -e ROOT_TOKEN=your-secret-root-token \
-    alexazhou/serverless_ai_gateway:latest
-```
+请参考 `doc/DockerDeployment.md` 获取完整的 Docker 部署说明。
 
 ---
 

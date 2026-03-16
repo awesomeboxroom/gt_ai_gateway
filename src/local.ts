@@ -22,7 +22,7 @@ async function startServer() {
     };
 
     // 初始化日志系统（在重写 console 之前，使用原始 console）
-    const logger: Logger = initLogger(process.cwd(), true);
+    const logger: Logger = initLogger(true);
     originalConsole.log("Starting server...");
 
     // 重写 console 方法以记录日志

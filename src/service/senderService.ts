@@ -10,6 +10,7 @@ import sseAccumulator from "../util/sseAccumulator";
 import { SgRecord } from "../model/sgRecord";
 import { mkdirSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
+import { getLogDir } from "../util/logger";
 
 
 async function handleStreamResponse(
@@ -28,8 +29,10 @@ async function handleStreamResponse(
     let logFilePath: string | null = null;
 
     if (isStreamLogEnabled) {
+        // 使用统一的日志目录计算方法
+        const baseLogDir = getLogDir();
         // 创建流式日志目录
-        const logDir = join(process.cwd(), "log", "stream");
+        const logDir = join(baseLogDir, "stream");
         console.log('[senderService] Stream log enabled, dir:', logDir);
 
         if (!existsSync(logDir)) {

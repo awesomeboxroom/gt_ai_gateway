@@ -10,10 +10,10 @@ services:
             - NODE_ENV=production
             - PORT=8787
             - DB_PATH=/app/data/local.db
+            - LOG_DIR=/app/data/log
             - ROOT_TOKEN=${ROOT_TOKEN:-your-secret-root-token-change-this}
         volumes:
             - ./data:/app/data
-            - ./log:/app/log
         restart: unless-stopped
         healthcheck:
             test: ["CMD", "node", "-e", "require('http').get('http://localhost:8787/welcome', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]

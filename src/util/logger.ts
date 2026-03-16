@@ -94,10 +94,23 @@ class Logger {
 
 let loggerInstance: Logger | null = null;
 
-function initLogger(rootDir: string, enabled: boolean = true): Logger {
+function initLogger(rootDirOrEnabled?: string | boolean, enabled?: boolean): Logger {
     if (!loggerInstance) {
-        const logDir = join(rootDir, "log");
-        loggerInstance = new Logger(logDir, enabled);
+        let logDir: string;
+        let isLoggerEnabled: boolean = true;
+
+        // 支持两种调用方式：
+        // 1. initLogger(enabled: boolean)
+        // 2. initLogger(rootDir: string, enabled: boolean)
+        if (typeof rootDirOrEnabled === "string") {
+            logDir = rootDirOrEnabled;
+            isLoggerEnabled = enabled ?? true;
+        } else {
+            logDir = getLogDir();
+            isLoggerEnabled = rootDirOrEnabled ?? true;
+        }
+
+        loggerInstance = new Logger(logDir, isLoggerEnabled);
     }
     return loggerInstance;
 }
@@ -110,5 +123,14 @@ function resetLogger(): void {
     loggerInstance = null;
 }
 
+/**
+ * 获取日志目录路径
+ * 优先使用环境变量 LOG_DIR，否则使用项目根目录下的 log
+ * @returns 日志目录路径
+ */
+function getLogDir(): string {
+    return process.env.LOG_DIR || join(process.cwd(), "log");
+}
+
 export default initLogger;
-export { getLogger, Logger, resetLogger };
+export { getLogger, Logger, resetLogger, getLogDir };

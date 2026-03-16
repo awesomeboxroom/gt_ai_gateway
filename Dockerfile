@@ -44,9 +44,6 @@ COPY --from=builder /app/frontend/dist ./frontend/dist
 COPY --from=builder /app/script ./script
 COPY --from=builder /app/resource ./resource
 
-# 创建日志目录
-RUN mkdir -p /app/log
-
 # 创建数据库文件目录
 RUN mkdir -p /app/data
 
