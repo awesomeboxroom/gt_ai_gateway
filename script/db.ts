@@ -440,8 +440,11 @@ async function main() {
     }
 }
 
-// Only run main() if this file is executed directly
-if (require.main === module) {
+// Only run main() if this file is executed directly as a CLI script.
+// require.main === module is unreliable when bundled with esbuild (always true at top level).
+// Use argv[1] instead: when run as `npx tsx script/db.ts`, argv[1] contains 'db.ts'.
+const _scriptPath = process.argv[1] || "";
+if (_scriptPath.endsWith("db.ts") || _scriptPath.endsWith("db.js") || _scriptPath.includes("/script/db")) {
     main();
 }
 
