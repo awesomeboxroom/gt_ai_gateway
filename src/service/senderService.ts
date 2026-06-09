@@ -52,7 +52,7 @@ function prepareStreamLog(record: SgRecord): WriteStream | null {
     const logFilePath = join(logDir, `${record.id}.log`);
     console.log("[senderService] Stream log file path:", logFilePath);
     
-    return createWriteStream(logFilePath, { flag: "a" });
+    return createWriteStream(logFilePath, { flags: "a" });
 }
 
 
