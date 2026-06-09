@@ -2,10 +2,18 @@
     <a-modal
         v-model:open="visible"
         title="编辑模型"
-        @ok="handleOk"
         @cancel="handleCancel"
         :confirm-loading="loading"
     >
+        <template #footer>
+            <div class="modal-footer">
+                <a-button :disabled="!formState.vendor_id" @click="handleTest">测试连通性</a-button>
+                <div>
+                    <a-button @click="handleCancel">Cancel</a-button>
+                    <a-button type="primary" :loading="loading" @click="handleOk">OK</a-button>
+                </div>
+            </div>
+        </template>
         <a-form
             :model="formState"
             :rules="rules"
@@ -97,10 +105,12 @@
             </a-collapse>
         </a-form>
     </a-modal>
+
+    <DialogTest ref="testDialogRef" />
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import type { FormInstance } from 'ant-design-vue/es';
 import { InfoCircleOutlined } from '@ant-design/icons-vue';
 import { updateModel } from '@/api/model';
@@ -109,6 +119,7 @@ import type { Model } from '@/types/model';
 import type { Vendor as VendorType, VendorModel } from '@/types/vendor';
 import { normalizeListResponse } from '@/utils/listResponse';
 import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
+import DialogTest from '@/views/Vendor/DialogTest.vue';
 
 const emit = defineEmits<{
     success: [model: Model];
@@ -118,6 +129,7 @@ const visible = ref(false);
 const loading = ref(false);
 const formRef = ref<FormInstance>();
 const billingExpanded = ref<string[]>([]);
+const testDialogRef = ref<InstanceType<typeof DialogTest>>();
 
 const currentId = ref<number>(0);
 
@@ -139,6 +151,13 @@ const vendors = ref<VendorType[]>([]);
 const vendorsLoading = ref(false);
 const vendorModels = ref<VendorModel[]>([]);
 const vendorModelsLoading = ref(false);
+
+const upstreamModelName = computed(() => {
+    if (formState.vendor_model_id) {
+        return vendorModels.value.find(vm => vm.id === formState.vendor_model_id)?.model_id ?? formState.name;
+    }
+    return formState.name;
+});
 
 async function loadVendors() {
     vendorsLoading.value = true;
@@ -168,6 +187,18 @@ function handleVendorChange(vendorId: number) {
     if (vendorId) {
         void loadVendorModels(vendorId);
     }
+}
+
+function handleTest() {
+    const vendor = vendors.value.find(v => v.id === formState.vendor_id);
+    if (!vendor) return;
+    const vendorModelName = formState.vendor_model_id
+        ? (vendorModels.value.find(vm => vm.id === formState.vendor_model_id)?.model_id ?? null)
+        : null;
+    testDialogRef.value?.open(vendor, upstreamModelName.value || undefined, {
+        modelName: formState.name,
+        vendorModelName,
+    });
 }
 
 function open(model: Model) {
@@ -216,3 +247,17 @@ function handleCancel() {
 
 defineExpose({ open });
 </script>
+
+<style scoped>
+.modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.modal-footer > div {
+    display: flex;
+    gap: 8px;
+}
+</style>

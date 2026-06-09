@@ -1,13 +1,31 @@
 <template>
     <a-modal
         v-model:open="visible"
-        title="供应商连通性测试"
+        :title="modalTitle"
         :footer="null"
         width="600px"
     >
         <div class="test-dialog">
             <div class="test-config">
                 <a-form layout="vertical">
+                    <!-- Model mode: read-only info block -->
+                    <template v-if="modelInfo">
+                        <div class="model-info">
+                            <div class="info-row">
+                                <span class="info-label">模型名称</span>
+                                <span class="info-value">{{ modelInfo.modelName }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">供应商</span>
+                                <span class="info-value">{{ currentVendor?.name }}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">供应商模型</span>
+                                <span class="info-value">{{ modelInfo.vendorModelName ?? '自动' }}</span>
+                            </div>
+                        </div>
+                    </template>
+
                     <a-form-item label="测试格式">
                         <a-radio-group v-model:value="format">
                             <a-radio-button value="openai">OpenAI</a-radio-button>
@@ -15,25 +33,28 @@
                         </a-radio-group>
                     </a-form-item>
 
-                    <a-form-item label="测试模型">
-                        <a-select
-                            v-model:value="testModel"
-                            placeholder="请选择或直接输入模型名称"
-                            show-search
-                            allow-clear
-                            :loading="modelsLoading"
-                            :options="selectOptions"
-                            @search="handleSearch"
-                            :filter-option="false"
-                            option-label-prop="value"
-                        >
-                            <template #option="{ value, isCustom }">
-                                <span v-if="isCustom" style="color: var(--accent-primary)">使用自定义模型: </span>
-                                {{ value }}
-                            </template>
-                        </a-select>
-                        <div class="hint-text">您可以从下拉列表中选择，也可以直接输入新的模型名称进行测试</div>
-                    </a-form-item>
+                    <!-- Vendor mode: editable model select -->
+                    <template v-if="!modelInfo">
+                        <a-form-item label="测试模型">
+                            <a-select
+                                v-model:value="testModel"
+                                placeholder="请选择或直接输入模型名称"
+                                show-search
+                                allow-clear
+                                :loading="modelsLoading"
+                                :options="selectOptions"
+                                @search="handleSearch"
+                                :filter-option="false"
+                                option-label-prop="value"
+                            >
+                                <template #option="{ value, isCustom }">
+                                    <span v-if="isCustom" style="color: var(--accent-primary)">使用自定义模型: </span>
+                                    {{ value }}
+                                </template>
+                            </a-select>
+                            <div class="hint-text">您可以从下拉列表中选择，也可以直接输入新的模型名称进行测试</div>
+                        </a-form-item>
+                    </template>
 
                     <a-button
                         type="primary"
@@ -81,34 +102,37 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { testVendor } from '@/api/vendor';
+import { testVendor, listVendorModels } from '@/api/vendor';
 import type { VendorTestResponse } from '@/api/vendor';
-import { listModels } from '@/api/model';
-import type { Vendor } from '@/types/vendor';
-import type { Model } from '@/types/model';
-import { normalizeListResponse } from '@/utils/listResponse';
+import type { Vendor, VendorModel } from '@/types/vendor';
 import { notifyRequestError, notifySuccess, notifyWarning } from '@/utils/requestFeedback';
+
+interface ModelInfo {
+    modelName: string;
+    vendorModelName: string | null;
+}
 
 const visible = ref(false);
 const loading = ref(false);
 const format = ref('openai');
 const result = ref<VendorTestResponse | null>(null);
 const currentVendor = ref<Vendor | null>(null);
+const modelInfo = ref<ModelInfo | null>(null);
 
 const testModel = ref<string>('');
-const vendorModels = ref<Model[]>([]);
+const vendorModels = ref<VendorModel[]>([]);
 const modelsLoading = ref(false);
 const searchValue = ref('');
 
-// 计算下拉列表选项
+const modalTitle = computed(() => modelInfo.value ? '模型可用性测试' : '供应商连通性测试');
+
 const selectOptions = computed(() => {
     const options = vendorModels.value.map(m => ({
-        value: m.name,
-        label: m.name,
+        value: m.model_id,
+        label: m.model_id,
         isCustom: false,
     }));
 
-    // 如果搜索值不在列表中，动态添加一个选项
     if (searchValue.value && !options.some(o => o.value === searchValue.value)) {
         options.unshift({
             value: searchValue.value,
@@ -133,35 +157,32 @@ const formattedResponse = computed(() => {
     }
 });
 
-async function open(vendor: Vendor) {
+function open(vendor: Vendor, defaultModel?: string, info?: ModelInfo) {
     currentVendor.value = vendor;
+    modelInfo.value = info ?? null;
     visible.value = true;
     result.value = null;
-    testModel.value = '';
+    testModel.value = defaultModel ?? '';
     searchValue.value = '';
-    
-    // 根据供应商类型预设格式
+
     if (vendor.type === 'anthropic') {
         format.value = 'anthropic';
     } else {
         format.value = 'openai';
     }
 
-    // 获取该供应商下的模型
-    loadVendorModels(vendor.id);
+    // Only load the model list in vendor mode
+    if (!info) {
+        loadVendorModels(vendor.id, defaultModel);
+    }
 }
 
-async function loadVendorModels(vendorId: number) {
+async function loadVendorModels(vendorId: number, defaultModel?: string) {
     modelsLoading.value = true;
     try {
-        vendorModels.value = normalizeListResponse(await listModels({
-            vendor_id: vendorId,
-            page: 1,
-            pageSize: 1000,
-        })).list;
-        // 如果有模型，默认选中第一个
-        if (vendorModels.value.length > 0) {
-            testModel.value = vendorModels.value[0]?.name || '';
+        vendorModels.value = await listVendorModels(vendorId);
+        if (!defaultModel && vendorModels.value.length > 0) {
+            testModel.value = vendorModels.value[0]?.model_id || '';
         }
     } catch (error) {
         notifyRequestError(error, '加载模型列表失败');
@@ -214,6 +235,38 @@ defineExpose({ open });
     font-size: 12px;
     color: #8c8c8c;
     margin-top: 4px;
+}
+
+.model-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    background: #f5f5f5;
+    border-radius: 6px;
+}
+
+.info-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.info-label {
+    color: #8c8c8c;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.info-label::after {
+    content: '：';
+}
+
+.info-value {
+    color: #262626;
+    word-break: break-all;
 }
 
 .test-result {

@@ -62,7 +62,7 @@
                     <span v-if="record.vendor_model_id" class="vendor-model-tag">
                         {{ getVendorModelName(record.vendor_model_id) }}
                     </span>
-                    <span v-else style="color: #bbb;">—</span>
+                    <span v-else style="color: #bbb;">自动</span>
                 </template>
                 <template v-if="column.key === 'enable'">
                     <a-tag :color="Boolean(record.enable) ? 'green' : 'red'">
@@ -92,6 +92,9 @@
                         <a-button type="link" @click="handleView(record)">
                             查看
                         </a-button>
+                        <a-button type="link" @click="handleTest(record)">
+                            测试
+                        </a-button>
                     </a-space>
                 </template>
             </template>
@@ -100,6 +103,7 @@
 
     <DialogCreate ref="createDialogRef" @success="handleCreateSuccess" />
     <DialogEdit ref="editDialogRef" @success="handleEditSuccess" />
+    <DialogTest ref="testDialogRef" />
 </template>
 
 <script setup lang="ts">
@@ -114,6 +118,7 @@ import { formatDate } from '@/utils/format';
 import { normalizeListResponse } from '@/utils/listResponse';
 import DialogCreate from './DialogCreate.vue';
 import DialogEdit from './DialogEdit.vue';
+import DialogTest from '@/views/Vendor/DialogTest.vue';
 import type { Model, ModelQuery } from '@/types/model';
 import type { Vendor as VendorType, VendorModel } from '@/types/vendor';
 
@@ -133,6 +138,7 @@ const { loading, data, pagination, searchForm, loadData, handleSearch, handleRes
 
 const createDialogRef = ref();
 const editDialogRef = ref();
+const testDialogRef = ref<InstanceType<typeof DialogTest>>();
 
 const vendors = ref<VendorType[]>([]);
 const vendorsLoading = ref(false);
@@ -141,7 +147,7 @@ const vendorModelsMap = ref<Map<number, string>>(new Map());
 const columns: TableColumnsType<Model> = [
     { title: 'ID', key: 'id', dataIndex: 'id', width: 80 },
     { title: '模型名称', key: 'name', dataIndex: 'name' },
-    { title: '所属供应商', key: 'vendor_id', dataIndex: 'vendor_id', width: 150 },
+    { title: '供应商', key: 'vendor_id', dataIndex: 'vendor_id', width: 150 },
     { title: '供应商模型', key: 'vendor_model_id', dataIndex: 'vendor_model_id', width: 200 },
     { title: '状态', key: 'enable', dataIndex: 'enable', width: 100 },
     { title: '价格', key: 'price', width: 180 },
@@ -182,6 +188,19 @@ function handleEditSuccess() {
 
 function handleView(record: Model) {
     router.push(`/model/${record.id}`);
+}
+
+function handleTest(record: Model) {
+    const vendor = vendors.value.find(v => v.id === record.vendor_id);
+    if (!vendor) return;
+    const vendorModelName = record.vendor_model_id
+        ? (vendorModelsMap.value.get(record.vendor_model_id) ?? null)
+        : null;
+    const upstreamModel = vendorModelName ?? record.name;
+    testDialogRef.value?.open(vendor, upstreamModel, {
+        modelName: record.name,
+        vendorModelName,
+    });
 }
 
 function getVendorName(vendorId: number): string {
