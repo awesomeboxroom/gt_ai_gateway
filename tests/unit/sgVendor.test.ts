@@ -225,4 +225,62 @@ describe("SgVendor.getUrlByFormat — URL merge & resolution", () => {
             expect(v.getUrls()).toEqual({});
         });
     });
+
+    describe("getMergedUrls", () => {
+        it("merges preset URLs with custom URLs", () => {
+            const v = makeVendor("aliyun", {
+                openai: "https://custom.example.com/v1",
+            });
+
+            const urls = v.getMergedUrls();
+            expect(urls.openai).toBe("https://custom.example.com/v1");
+            expect(urls.anthropic).toContain("dashscope.aliyuncs.com");
+        });
+
+        it("returns custom URLs when vendor type has no preset", () => {
+            const v = makeVendor("other", {
+                openai: "https://custom.example.com/v1",
+            });
+
+            expect(v.getMergedUrls()).toEqual({
+                openai: "https://custom.example.com/v1",
+            });
+        });
+
+        it("falls back to preset URLs when stored urls is invalid", () => {
+            const v = new SgVendor();
+            v.type = "openai";
+            v.token = "t";
+            v.urls = "not-json";
+
+            expect(v.getMergedUrls().openai).toContain("api.openai.com");
+        });
+    });
+
+    describe("getUpstreamFormat", () => {
+        it("returns clientFormat if custom URL exists for client format", () => {
+            const v = makeVendor("other", { anthropic: "https://a.com" });
+            expect(v.getUpstreamFormat(ApiFormat.ANTHROPIC)).toBe(ApiFormat.ANTHROPIC);
+        });
+
+        it("returns clientFormat if default URL exists for client format", () => {
+            const v = makeVendor("anthropic");
+            expect(v.getUpstreamFormat(ApiFormat.ANTHROPIC)).toBe(ApiFormat.ANTHROPIC);
+        });
+
+        it("returns alternative format if custom URL exists for it", () => {
+            const v = makeVendor("other", { openai: "https://a.com" });
+            expect(v.getUpstreamFormat(ApiFormat.ANTHROPIC)).toBe(ApiFormat.OPENAI);
+        });
+
+        it("returns alternative format if default URL exists for it", () => {
+            const v = makeVendor("google"); // Google only has openai preset
+            expect(v.getUpstreamFormat(ApiFormat.ANTHROPIC)).toBe(ApiFormat.OPENAI);
+        });
+
+        it("returns clientFormat if no URL exists", () => {
+            const v = makeVendor("other");
+            expect(v.getUpstreamFormat(ApiFormat.ANTHROPIC)).toBe(ApiFormat.ANTHROPIC);
+        });
+    });
 });

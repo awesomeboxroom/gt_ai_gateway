@@ -10,11 +10,14 @@ import ormService from "./ormService";
 import { SgRecordStatus, FailedCode, ApiFormat } from "../constants";
 import sseAccumulator from "../util/sseAccumulator";
 import { SgRecord } from "../model/sgRecord";
-import { mkdirSync, writeFileSync, existsSync, createWriteStream, WriteStream } from "fs";
+import { mkdirSync, existsSync, createWriteStream, WriteStream } from "fs";
 import { join } from "path";
 import { getLogDir } from "../util/logger";
 import userService from "./userService";
 import customError from "../util/customError";
+import { ConverterFactory } from "../util/protocolConverter/ConverterFactory";
+import type { BaseConverter } from "../util/protocolConverter/BaseConverter";
+import sseEvent from "../util/sseEvent";
 
 
 // Calculate cost based on model pricing and token usage
@@ -82,10 +85,14 @@ async function handleStreamResponse(
     model: SgModel,
     user: SgUser,
     format: ApiFormat,
+    upstreamFormat: ApiFormat = format,
+    converter: BaseConverter | null = null,
 ): Promise<Response> {
+    const needsConversion = format !== upstreamFormat;
     const accumulator = new sseAccumulator.SSEAccumulator(
         format === ApiFormat.ANTHROPIC ? "anthropic" : "openai",
     );
+
     let firstTokenTime: number | null = null;
 
     const logStream = prepareStreamLog(record);
@@ -118,10 +125,9 @@ async function handleStreamResponse(
                 appendStreamLog(logStream, chunk);
                 buffer += chunk;
 
-                // 按 \n\n 切割出完整的 SSE event
-                const events = buffer.split("\n\n");
-                // 最后一段可能不完整，留到下一轮拼接
-                buffer = events.pop() ?? "";
+                const splitResult = sseEvent.splitEvents(buffer);
+                const events = splitResult.events;
+                buffer = splitResult.remainingBuffer;
 
                 let clientDisconnected = false;
                 for (const event of events) {
@@ -129,56 +135,49 @@ async function handleStreamResponse(
 
                     eventCount++;
 
-                    // 解析 SSE event 中的各字段行（data / event / id / retry）
-                    const lines = event.split("\n");
-                    let data = "";
-                    let eventType = "";
-                    let id = "";
-                    for (const line of lines) {
-                        if (line.startsWith("data:")) {
-                            data = line.slice(5).trim();
-                        } else if (line.startsWith("event:")) {
-                            eventType = line.slice(6).trim();
-                        } else if (line.startsWith("id:")) {
-                            id = line.slice(3).trim();
+                    const parsedEvent = sseEvent.parseEvent(event);
+                    if (!parsedEvent) continue;
+
+                    const clientEvents = needsConversion && converter
+                        ? converter.convertStreamEvent(parsedEvent.data, parsedEvent.event, parsedEvent.id)
+                        : [parsedEvent];
+
+                    for (const clientEvent of clientEvents) {
+                        if (!clientEvent.data) continue;
+
+                        const isCompleted = sseEvent.isClientStreamCompleted(format, clientEvent);
+                        if (firstTokenTime === null && !isCompleted) {
+                            firstTokenTime = Date.now();
+                        }
+
+                        if (isCompleted) {
+                            streamCompleted = true;
+                        }
+
+                        try {
+                            await stream.writeSSE({
+                                data: clientEvent.data,
+                                event: clientEvent.event,
+                                id: clientEvent.id,
+                            });
+                        } catch (e: any) {
+                            console.error("[senderService] Client write error (client disconnected):", e);
+                            failedCode = FailedCode.CLIENT_DISCONNECTED;
+                            clientDisconnected = true;
+                            break;
+                        }
+
+                        if (isCompleted) continue;
+
+                        try {
+                            const parsedData = JSON.parse(clientEvent.data);
+                            accumulator.addMessage(parsedData, clientEvent.event);
+                        } catch (e) {
+                            console.log("Failed to parse SSE data:", clientEvent.data, e);
                         }
                     }
 
-                    if (!data) continue;
-
-                    // 记录首个 token 时间
-                    if (firstTokenTime === null && data !== "[DONE]") {
-                        firstTokenTime = Date.now();
-                    }
-
-                    // 上游流完成标志：OpenAI 用 [DONE]，Anthropic 用 message_stop event
-                    if (
-                        data === "[DONE]" ||
-                        (format === ApiFormat.ANTHROPIC && eventType === "message_stop")
-                    ) {
-                        streamCompleted = true;
-                    }
-
-                    // 转发给客户端
-                    try {
-                        await stream.writeSSE({ data, event: eventType || undefined, id: id || undefined });
-                    } catch (e: any) {
-                        console.error("[senderService] Client write error (client disconnected):", e);
-                        failedCode = FailedCode.CLIENT_DISCONNECTED;
-                        clientDisconnected = true;
-                        break;
-                    }
-
-                    // [DONE] 之后不需要解析内容
-                    if (data === "[DONE]") continue;
-
-                    // 累积消息用于保存完整响应
-                    try {
-                        const parsedData = JSON.parse(data);
-                        accumulator.addMessage(parsedData, eventType);
-                    } catch (e) {
-                        console.log("Failed to parse SSE data:", data, e);
-                    }
+                    if (clientDisconnected) break;
                 }
 
                 if (clientDisconnected) break;
@@ -235,16 +234,30 @@ async function handleNonStreamResponse(
     model: SgModel,
     user: SgUser,
     format: ApiFormat,
+    upstreamFormat: ApiFormat = format,
+    converter: BaseConverter | null = null,
 ): Promise<Response> {
     const responseText = await upstreamRes.text();
     const statusCode = upstreamRes.status as StatusCode;
+    const needsConversion = format !== upstreamFormat;
+
+    let clientResponseText = responseText;
+    if (needsConversion && converter) {
+        try {
+            const responseJson = JSON.parse(responseText);
+            const clientRes = converter.convertResponse(responseJson);
+            clientResponseText = JSON.stringify(clientRes);
+        } catch (e) {
+            console.error("[senderService] Failed to convert response format:", e);
+        }
+    }
 
     // 从响应体中提取 token 统计
     let promptTokens: number | null = null;
     let outputTokens: number | null = null;
     try {
         const responseJson = JSON.parse(responseText);
-        if (format === ApiFormat.ANTHROPIC) {
+        if (upstreamFormat === ApiFormat.ANTHROPIC) {
             promptTokens = responseJson.usage?.input_tokens ?? null;
             outputTokens = responseJson.usage?.output_tokens ?? null;
         } else {
@@ -260,7 +273,7 @@ async function handleNonStreamResponse(
     const cost = calculateCost(model, finalPromptTokens, finalOutputTokens);
 
     await recordService.update(record.id, {
-        response_data: responseText,
+        response_data: clientResponseText,
         status: statusCode === 200 ? SgRecordStatus.SUCCESS : SgRecordStatus.FAILED,
         prompt_tokens: promptTokens,
         output_tokens: outputTokens,
@@ -275,7 +288,7 @@ async function handleNonStreamResponse(
 
     c.status(statusCode);
     c.res.headers.set("Content-Type", "application/json");
-    return c.text(responseText);
+    return c.text(clientResponseText);
 }
 
 
@@ -315,34 +328,26 @@ async function handleResponsesStreamResponse(
                 appendStreamLog(logStream, chunk);
                 buffer += chunk;
 
-                const events = buffer.split("\n\n");
-                buffer = events.pop() ?? "";
+                const splitResult = sseEvent.splitEvents(buffer);
+                const events = splitResult.events;
+                buffer = splitResult.remainingBuffer;
 
                 let clientDisconnected = false;
                 for (const event of events) {
                     if (!event.trim()) continue;
 
-                    const lines = event.split("\n");
-                    let data = "";
-                    let eventType = "";
-                    for (const line of lines) {
-                        if (line.startsWith("data:")) {
-                            data = line.slice(5).trim();
-                        } else if (line.startsWith("event:")) {
-                            eventType = line.slice(6).trim();
-                        }
-                    }
-
-                    if (!data) continue;
+                    const parsedEvent = sseEvent.parseEvent(event);
+                    if (!parsedEvent) continue;
 
                     // Responses API embeds event type in the JSON `type` field (no SSE `event:` line)
                     let parsedData: any = null;
                     try {
-                        parsedData = JSON.parse(data);
+                        parsedData = JSON.parse(parsedEvent.data);
                     } catch (e) {
                         // ignore unparseable lines
                     }
 
+                    const eventType = parsedEvent.event ?? "";
                     const responseEventType = parsedData?.type ?? eventType;
 
                     if (firstTokenTime === null && responseEventType === "response.output_text.delta") {
@@ -355,7 +360,11 @@ async function handleResponsesStreamResponse(
                     }
 
                     try {
-                        await stream.writeSSE({ data, event: eventType || undefined });
+                        await stream.writeSSE({
+                            data: parsedEvent.data,
+                            event: parsedEvent.event,
+                            id: parsedEvent.id,
+                        });
                     } catch (e: any) {
                         console.error("[senderService] Client write error (client disconnected, responses):", e);
                         failedCode = FailedCode.CLIENT_DISCONNECTED;
@@ -465,9 +474,16 @@ async function sendRequest(
     format: ApiFormat,
     body: string,
 ): Promise<Response> {
-    const url = vendor.getUrlByFormat(format);
+    const upstreamFormat = vendor.getUpstreamFormat(format);
+    const needsConversion = format !== upstreamFormat;
 
-    console.log("sendRequest: modelConfig={}", modelConfig);
+    if (needsConversion) {
+        console.log(`[senderService] Protocol conversion enabled: client=${format} → upstream=${upstreamFormat}`);
+    }
+
+    const url = vendor.getUrlByFormat(upstreamFormat);
+
+    console.log("sendRequest: modelConfig={}, format={}, upstreamFormat={}", modelConfig, format, upstreamFormat);
 
     // Check user balance (only for non-root users)
     if (user.type !== "root") {
@@ -516,7 +532,7 @@ async function sendRequest(
         }
     }
 
-    if (format === ApiFormat.ANTHROPIC) {
+    if (upstreamFormat === ApiFormat.ANTHROPIC) {
         finalHeaders.set("x-api-key", vendor.token);
         finalHeaders.set("anthropic-version", "2023-06-01");
     } else {
@@ -541,10 +557,36 @@ async function sendRequest(
         }
     }
 
+    let converter: BaseConverter | null = null;
+    if (needsConversion) {
+        if (format === ApiFormat.RESPONSES || upstreamFormat === ApiFormat.RESPONSES) {
+            throw new customError.AppError(
+                `Protocol conversion is not supported for Responses API format`,
+                400,
+            );
+        }
+
+        converter = ConverterFactory.create(format, upstreamFormat);
+        if (!converter) {
+            throw new customError.AppError(
+                `Unsupported protocol conversion: ${format} → ${upstreamFormat}`,
+                400,
+            );
+        }
+        upstreamBody = converter.convertRequestBody(upstreamBody);
+    }
+
+    let requestModel = "unknown";
+    try {
+        const parsedBody = JSON.parse(upstreamBody);
+        requestModel = parsedBody.model || "unknown";
+    } catch (e) {}
+    converter?.updateModel(requestModel);
+
     // 4. OpenAI 流式请求注入 stream_options，让上游在最后一帧返回 usage
-    if (format === ApiFormat.OPENAI) {
+    if (upstreamFormat === ApiFormat.OPENAI) {
         try {
-            const bodyJson = JSON.parse(body);
+            const bodyJson = JSON.parse(upstreamBody);
             if (bodyJson.stream === true) {
                 bodyJson.stream_options = { include_usage: true };
                 upstreamBody = JSON.stringify(bodyJson);
@@ -583,9 +625,9 @@ async function sendRequest(
     }
 
     if (isStream) {
-        return handleStreamResponse(c, upstreamRes, record, modelConfig, user, format);
+        return handleStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
     } else {
-        return handleNonStreamResponse(c, upstreamRes, record, modelConfig, user, format);
+        return handleNonStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
     }
 }
 
