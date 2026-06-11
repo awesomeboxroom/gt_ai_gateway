@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build:viewer": "cd public/data_viewer && npm install && npm run build",
+    "build": "npm run build:viewer && vue-tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest",
     "test:run": "vitest run",
-    "build:tauri": "vite build --mode tauri",
-    "postinstall": "cd public/data_viewer && npm install && npm run build"
+    "build:tauri": "npm run build:viewer && vite build --mode tauri",
+    "postinstall": "npm run build:viewer"
   },
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
