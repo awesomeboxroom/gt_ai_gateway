@@ -271,7 +271,7 @@ pub fn run() {
                 .icon(tray_icon)
                 .tooltip("AI Gateway")
                 .menu(&menu)
-                .menu_on_left_click(true)
+                .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
                         show_main_window(app);
