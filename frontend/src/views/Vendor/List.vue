@@ -58,19 +58,19 @@
                 </template>
                 <template v-if="column.key === 'action'">
                     <a-space>
-                        <a-button type="link" @click="handleEdit(record)">
+                        <a-button type="link" style="padding: 0" @click="handleEdit(record)">
                             编辑
                         </a-button>
-                        <a-button type="link" @click="handleTest(record)">
+                        <a-button type="link" style="padding: 0" @click="handleTest(record)">
                             测试
                         </a-button>
-                        <a-button type="link" @click="handleModels(record)">
+                        <a-button type="link" style="padding: 0" @click="handleModels(record)">
                             模型
                         </a-button>
-                        <a-button type="link" @click="handleView(record)">
+                        <a-button type="link" style="padding: 0" @click="handleView(record)">
                             查看
                         </a-button>
-                        <a-button type="link" danger @click="handleDelete(record)">
+                        <a-button type="link" danger style="padding: 0" @click="handleDelete(record)">
                             删除
                         </a-button>
                     </a-space>

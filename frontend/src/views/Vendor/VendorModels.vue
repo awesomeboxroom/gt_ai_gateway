@@ -32,12 +32,14 @@
                         {{ formatDate(record.created_at) }}
                     </template>
                     <template v-if="column.key === 'action'">
-                        <a-button type="link" size="small" @click="handleTest(record)">
-                            测试
-                        </a-button>
-                        <a-button type="link" danger size="small" @click="handleDelete(record)">
-                            删除
-                        </a-button>
+                        <a-space>
+                            <a-button type="link" size="small" style="padding: 0" @click="handleTest(record)">
+                                测试
+                            </a-button>
+                            <a-button type="link" danger size="small" style="padding: 0" @click="handleDelete(record)">
+                                删除
+                            </a-button>
+                        </a-space>
                     </template>
                 </template>
             </a-table>
