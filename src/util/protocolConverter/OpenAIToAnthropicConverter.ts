@@ -211,7 +211,7 @@ export class OpenAIToAnthropicConverter extends BaseConverter {
     protected doConvertStreamEvent(data: Record<string, unknown>, rawDataStr: string): ProtocolStreamEvent[] {
 
         const events: AnthropicSSEEvent[] = [];
-        const chunk = data as OpenAIChunk;
+        const chunk = data as unknown as OpenAIChunk;
 
         if (this.isFirstChunk) {
             this.isFirstChunk = false;

@@ -143,7 +143,7 @@ const testDialogRef = ref<InstanceType<typeof DialogTest>>();
 
 const vendors = ref<VendorType[]>([]);
 const vendorsLoading = ref(false);
-const vendorModelsMap = ref<Map<number, string>>(new Map());
+const vendorModelsMap = ref<Map<number, VendorModel>>(new Map());
 
 const columns: TableColumnsType<Model> = [
     { title: 'ID', key: 'id', dataIndex: 'id' },
@@ -194,13 +194,15 @@ function handleView(record: Model) {
 function handleTest(record: Model) {
     const vendor = vendors.value.find(v => v.id === record.vendor_id);
     if (!vendor) return;
-    const vendorModelName = record.vendor_model_id
+    const vendorModel = record.vendor_model_id
         ? (vendorModelsMap.value.get(record.vendor_model_id) ?? null)
         : null;
+    const vendorModelName = vendorModel?.model_id ?? null;
     const upstreamModel = vendorModelName ?? record.name;
     testDialogRef.value?.open(vendor, upstreamModel, {
         modelName: record.name,
         vendorModelName,
+        allowedFormats: vendorModel?.allowed_formats ?? null,
         showAutoConvert: true,
     });
 }
@@ -211,7 +213,7 @@ function getVendorName(vendorId: number): string {
 }
 
 function getVendorModelName(id: number): string {
-    return vendorModelsMap.value.get(id) ?? `#${id}`;
+    return vendorModelsMap.value.get(id)?.model_id ?? `#${id}`;
 }
 
 async function loadVendorModelsForPage(models: Model[]) {
@@ -219,7 +221,7 @@ async function loadVendorModelsForPage(models: Model[]) {
     if (ids.length === 0) return;
     try {
         const vms = await fetchVendorModelsByIds(ids);
-        vms.forEach((vm: VendorModel) => vendorModelsMap.value.set(vm.id, vm.model_id));
+        vms.forEach((vm: VendorModel) => vendorModelsMap.value.set(vm.id, vm));
     } catch {
         // ignore
     }
