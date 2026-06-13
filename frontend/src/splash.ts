@@ -78,9 +78,6 @@ async function initSplash() {
         localStorage.setItem('adminToken', token);
         localStorage.setItem('backendBaseURL', url);
 
-        // 人为增加 6 秒延迟，方便看清启动画面
-        await new Promise(r => setTimeout(r, 6000));
-
         // Tell Rust to open the main window and close this splash screen
         await invoke('open_main_window');
 
