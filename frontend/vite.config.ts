@@ -1,8 +1,28 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
+import { cpSync, existsSync, rmSync } from 'node:fs'
+import { resolve } from 'node:path'
 import Components from 'unplugin-vue-components/vite'
 import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
+
+function dataViewerDistOnlyPlugin() {
+    return {
+        name: 'data-viewer-dist-only',
+        closeBundle() {
+            const frontendRoot = fileURLToPath(new URL('.', import.meta.url))
+            const outputDataViewerDir = resolve(frontendRoot, 'dist/data_viewer')
+            const sourceDataViewerDist = resolve(frontendRoot, 'public/data_viewer/dist')
+            const outputDataViewerDist = resolve(outputDataViewerDir, 'dist')
+
+            rmSync(outputDataViewerDir, { recursive: true, force: true })
+
+            if (existsSync(sourceDataViewerDist)) {
+                cpSync(sourceDataViewerDist, outputDataViewerDist, { recursive: true })
+            }
+        },
+    }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -15,6 +35,7 @@ export default defineConfig({
                 }),
             ],
         }),
+        dataViewerDistOnlyPlugin(),
     ],
     resolve: {
         alias: {

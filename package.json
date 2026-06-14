@@ -65,6 +65,6 @@
     "ts-prune": "^0.10.3",
     "typescript": "^6.0.3",
     "vitest": "^4.0.18",
-    "wrangler": "^4.69.0"
+    "wrangler": "^4.100.0"
   }
 }
