@@ -86,7 +86,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           cd tauri/scripts
-          python3 build_release.py ${{ matrix.target }}
+          python3 -u build_release.py ${{ matrix.target }}
 
       - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v7
