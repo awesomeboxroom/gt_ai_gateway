@@ -385,6 +385,8 @@ interface ResponsesAccumulatedResponse {
 | `messages[].content` (array) | `messages[].content` (string 或 array) | 如果只有一个 text 块，提取为字符串 |
 | `messages[].content[].type == "text"` | `messages[].content` | 提取 `.text` 字段 |
 | `messages[].content[].type == "image"` | `messages[].content` (array of objects) | 转为 `{type: "image_url", image_url: {url: ...}}` |
+| `messages[role="assistant"].content[].type == "tool_use"` | `messages[].tool_calls` | 转为 `{id, type:"function", function:{name, arguments}}` |
+| `messages[role="user"].content[].type == "tool_result"` | `messages[role="tool"]` | 转为 `{role:"tool", tool_call_id, content}` |
 | `max_tokens` | `max_tokens` | 直接传递 |
 | `temperature` | `temperature` | 直接传递 |
 | `top_p` | `top_p` | 直接传递 |
@@ -393,6 +395,23 @@ interface ResponsesAccumulatedResponse {
 | `tools[].description` | `tools[].function.description` | 嵌套到 function 对象 |
 | `tools[].input_schema` | `tools[].function.parameters` | 直接传递（JSON Schema 兼容） |
 | `stop_sequences` | `stop` | 直接传递 |
+
+#### tool_result 与普通用户文本的顺序
+
+当 Anthropic 的同一条 `user` 消息中同时包含 `tool_result` 和普通 `text` 块时，转换到 OpenAI Chat Completions 格式后，必须先输出所有 `role="tool"` 消息，再输出普通 `role="user"` 文本消息。原因是 OpenAI 要求带 `tool_calls` 的 assistant 消息后面必须紧跟对应的 `tool` 消息；如果先输出普通用户文本，会变成 `assistant(tool_calls) -> user(text) -> tool(result)`，上游会以 `invalid_request_error` 拒绝请求。
+
+示例：
+
+```text
+Anthropic:
+assistant: [text, tool_use(call_1)]
+user: [tool_result(call_1), text]
+
+OpenAI:
+assistant: content + tool_calls(call_1)
+tool: tool_call_id=call_1
+user: text
+```
 
 ### 8.2 请求转换：OpenAI → Anthropic
 

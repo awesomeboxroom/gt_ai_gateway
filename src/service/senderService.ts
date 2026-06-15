@@ -10,7 +10,8 @@ import ormService from "./ormService";
 import { SgRecordStatus, FailedCode, ApiFormat } from "../constants";
 import sseAccumulator from "../util/sseAccumulator";
 import { SgRecord, SgRecordUsage } from "../model/sgRecord";
-import { mkdirSync, existsSync, createWriteStream, WriteStream } from "fs";
+import { createWriteStream, WriteStream } from "fs";
+import fs from "fs/promises";
 import { join } from "path";
 import { getLogDir } from "../util/logger";
 import userService from "./userService";
@@ -42,7 +43,7 @@ function calculateCost(
 }
 
 
-function prepareStreamLog(record: SgRecord): WriteStream | null {
+async function prepareStreamLog(record: SgRecord): Promise<WriteStream | null> {
     const isStreamLogEnabled = ormService.isNode && process.env.STREAM_LOG_ENABLED === "true";
 
     if (!isStreamLogEnabled) {
@@ -53,20 +54,35 @@ function prepareStreamLog(record: SgRecord): WriteStream | null {
     const logDir = join(baseLogDir, "stream");
     console.log("[senderService] Stream log enabled, dir:", logDir);
 
-    if (!existsSync(logDir)) {
-        console.log("[senderService] Creating log dir...");
-        try {
-            mkdirSync(logDir, { recursive: true });
-        } catch (e: any) {
-            console.log("[senderService] Failed to create log dir:", e);
-            return null;
-        }
+    try {
+        await fs.mkdir(logDir, { recursive: true });
+    } catch (e: any) {
+        console.log("[senderService] Failed to create log dir:", e);
+        return null;
     }
 
     const logFilePath = join(logDir, `${record.id}.log`);
     console.log("[senderService] Stream log file path:", logFilePath);
-    
+
     return createWriteStream(logFilePath, { flags: "a" });
+}
+
+
+async function writeRequestLog(record: SgRecord, body: string): Promise<void> {
+    const isStreamLogEnabled = ormService.isNode && process.env.STREAM_LOG_ENABLED === "true";
+    if (!isStreamLogEnabled) return;
+
+    const logDir = join(getLogDir(), "stream");
+    try {
+        await fs.mkdir(logDir, { recursive: true });
+    } catch (e: any) {
+        console.log("[senderService] Failed to create log dir:", e);
+        return;
+    }
+
+    const logFilePath = join(logDir, `${record.id}.after_convert_req.log`);
+    const ws = createWriteStream(logFilePath);
+    ws.end(body);
 }
 
 
@@ -105,7 +121,7 @@ async function handleStreamResponse(
 
     let firstTokenTime: number | null = null;
 
-    const logStream = prepareStreamLog(record);
+    const logStream = await prepareStreamLog(record);
 
     return streamSSE(c, async (stream: SSEStreamingApi) => {
         const reader = upstreamRes.body!.getReader();
@@ -350,7 +366,7 @@ async function handleResponsesStreamResponse(
     upstreamFormat: ApiFormat = ApiFormat.RESPONSES,
 ): Promise<Response> {
     let firstTokenTime: number | null = null;
-    const logStream = prepareStreamLog(record);
+    const logStream = await prepareStreamLog(record);
     const needsConversion = converter !== null;
 
     return streamSSE(c, async (stream: SSEStreamingApi) => {
@@ -721,6 +737,8 @@ async function sendRequest(
             console.log("Failed to inject stream_options:", e);
         }
     }
+
+    await writeRequestLog(record, upstreamBody);
 
     // 4. 发起上游请求，拿到响应头后立即判断响应类型
     let upstreamRes: Response;

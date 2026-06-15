@@ -42,17 +42,18 @@ export class AnthropicToOpenAIConverter extends BaseConverter {
                     const toolResults = msg.content.filter((b) => b.type === "tool_result");
                     const normalBlocks = msg.content.filter((b) => b.type !== "tool_result");
 
-                    if (normalBlocks.length > 0) {
-                        const texts = normalBlocks.map((b) => b.text || "").join("\n");
-                        messages.push({ role: "user", content: texts });
-                    }
-
+                    // OpenAI requires tool responses to immediately follow assistant tool_calls.
                     for (const tr of toolResults) {
                         messages.push({
                             role: "tool",
                             tool_call_id: tr.tool_use_id,
                             content: typeof tr.content === "string" ? tr.content : JSON.stringify(tr.content),
                         });
+                    }
+
+                    if (normalBlocks.length > 0) {
+                        const texts = normalBlocks.map((b) => b.text || "").join("\n");
+                        messages.push({ role: "user", content: texts });
                     }
                 }
             } else if (msg.role === "assistant") {

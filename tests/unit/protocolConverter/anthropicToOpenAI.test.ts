@@ -212,6 +212,63 @@ describe("AnthropicToOpenAIConverter - convertRequest", () => {
         expect(toolMsg.tool_call_id).toBe("toolu_123");
     });
 
+    it("should place tool_result before normal user text when converting mixed content blocks", () => {
+        const anthropicReq: AnthropicRequest = {
+            model: "claude-3-sonnet-20240229",
+            max_tokens: 1024,
+            messages: [
+                {
+                    role: "assistant",
+                    content: [
+                        { type: "text", text: "I will run a check." },
+                        {
+                            type: "tool_use",
+                            id: "call_check",
+                            name: "Agent",
+                            input: { description: "Run TypeScript check" },
+                        },
+                    ],
+                },
+                {
+                    role: "user",
+                    content: [
+                        { type: "tool_result", tool_use_id: "call_check", content: "The tool use was rejected." },
+                        { type: "text", text: "[Request interrupted by user for tool use]\n" },
+                        { type: "text", text: "Run tests directly\n" },
+                        { type: "text", text: "Continue" },
+                    ],
+                },
+            ],
+        };
+
+        const result = converter.convertRequest(anthropicReq);
+
+        expect(result.messages).toHaveLength(3);
+        expect(result.messages[0]).toMatchObject({
+            role: "assistant",
+            content: "I will run a check.",
+            tool_calls: [
+                {
+                    id: "call_check",
+                    type: "function",
+                    function: {
+                        name: "Agent",
+                        arguments: '{"description":"Run TypeScript check"}',
+                    },
+                },
+            ],
+        });
+        expect(result.messages[1]).toEqual({
+            role: "tool",
+            tool_call_id: "call_check",
+            content: "The tool use was rejected.",
+        });
+        expect(result.messages[2]).toEqual({
+            role: "user",
+            content: "[Request interrupted by user for tool use]\n\nRun tests directly\n\nContinue",
+        });
+    });
+
     it("should convert stop_sequences to stop", () => {
         const anthropicReq: AnthropicRequest = {
             model: "claude-3-sonnet-20240229",
