@@ -163,18 +163,24 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
         handleOpenAIStreamDisconnect(req, res);
     } else if (url.includes("/chat/completions/slow")) {
         handleOpenAIStreamSlow(req, res);
+    } else if (url.includes("/chat/completions/error")) {
+        handleOpenAIChatError(req, res);
     } else if (url.includes("/chat/completions")) {
         handleOpenAIChat(req, res);
     } else if (url.includes("/responses/incomplete")) {
         handleResponsesStreamIncomplete(req, res);
     } else if (url.includes("/responses/slow")) {
         handleResponsesStreamSlow(req, res);
+    } else if (url.includes("/responses/error")) {
+        handleResponsesError(req, res);
     } else if (url.includes("/responses")) {
         handleOpenAIResponses(req, res);
     } else if (url.includes("/messages/incomplete")) {
         handleAnthropicStreamIncomplete(req, res);
     } else if (url.includes("/messages/slow")) {
         handleAnthropicStreamSlow(req, res);
+    } else if (url.includes("/messages/error")) {
+        handleAnthropicMessagesError(req, res);
     } else if (url.includes("/messages")) {
         handleAnthropicMessages(req, res);
     } else if (req.method === "GET" && url.includes("/models")) {
@@ -217,6 +223,33 @@ function handleOpenAIChat(req: IncomingMessage, res: ServerResponse): void {
         }
     });
 }
+
+
+function handleOpenAIChatError(req: IncomingMessage, res: ServerResponse): void {
+    let body = "";
+
+    req.on("data", (chunk) => {
+        body += chunk.toString();
+    });
+
+    req.on("end", () => {
+        try {
+            const data = body ? JSON.parse(body) : {};
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+                error: {
+                    message: `Not supported model ${data.model || "unknown"}`,
+                    type: "invalid_request_error",
+                    param: "model",
+                    code: "model_not_supported",
+                },
+            }));
+        } catch (e) {
+            handleBadRequest(res, "Invalid request body");
+        }
+    });
+}
+
 
 /**
  * Handle OpenAI non-streaming response
@@ -468,6 +501,32 @@ function handleOpenAIResponses(req: IncomingMessage, res: ServerResponse): void 
     });
 }
 
+
+function handleResponsesError(req: IncomingMessage, res: ServerResponse): void {
+    let body = "";
+
+    req.on("data", (chunk) => {
+        body += chunk.toString();
+    });
+
+    req.on("end", () => {
+        try {
+            const data = body ? JSON.parse(body) : {};
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+                error: {
+                    code: "400",
+                    message: "Param Incorrect",
+                    param: `Not supported model ${data.model || "unknown"}`,
+                },
+            }));
+        } catch (e) {
+            handleBadRequest(res, "Invalid request body");
+        }
+    });
+}
+
+
 function handleResponsesNonStreamResponse(res: ServerResponse, data: any): void {
     const msgId = `msg_mock_${Date.now()}`;
     const respId = `resp_mock_${Date.now()}`;
@@ -702,6 +761,32 @@ function handleAnthropicMessages(
         }
     });
 }
+
+
+function handleAnthropicMessagesError(req: IncomingMessage, res: ServerResponse): void {
+    let body = "";
+
+    req.on("data", (chunk) => {
+        body += chunk.toString();
+    });
+
+    req.on("end", () => {
+        try {
+            const data = body ? JSON.parse(body) : {};
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+                type: "error",
+                error: {
+                    type: "invalid_request_error",
+                    message: `Not supported model ${data.model || "unknown"}`,
+                },
+            }));
+        } catch (e) {
+            handleBadRequest(res, "Invalid request body");
+        }
+    });
+}
+
 
 /**
  * Handle Anthropic non-streaming response

@@ -59,6 +59,20 @@ describe("ResponsesToAnthropicConverter - convertRequest", () => {
         expect(result.messages[0].role).toBe("user");
     });
 
+    it("should convert string input to a user message", () => {
+        const req: ResponsesRequest = {
+            model: "gpt-4.1",
+            input: "Hello",
+        };
+
+        const result = converter.convertRequest(req);
+
+        expect(result.model).toBe("gpt-4.1");
+        expect(result.messages).toEqual([
+            { role: "user", content: "Hello" },
+        ]);
+    });
+
     it("should convert instructions to system prompt", () => {
         const req: ResponsesRequest = {
             model: "gpt-4.1",

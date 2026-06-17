@@ -17,6 +17,8 @@ let testUserToken: string;
 let anthropicVendorId: number;
 let anthropicModelId: number;
 let anthropicModelName: string;
+let anthropicErrorModelId: number;
+let anthropicErrorModelName: string;
 let adminToken: string;
 
 describe("AI Messages API (Anthropic)", () => {
@@ -58,6 +60,25 @@ describe("AI Messages API (Anthropic)", () => {
         );
         console.log("Created model:", anthropicModel.body);
         anthropicModelId = anthropicModel.body.id;
+
+        const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+        const anthropicErrorVendor = await requestHelper.post(
+            "/vendor/create.json",
+            {
+                type: "other",
+                name: "Mock Anthropic Error Vendor",
+                token: "mock-anthropic-error-token",
+                urls: { anthropic: `${mockBaseUrl}/messages/error` },
+            },
+            adminToken,
+        );
+        anthropicErrorModelName = `anthropic-error-model-${Date.now()}`;
+        const anthropicErrorModel = await requestHelper.post(
+            "/model/create.json",
+            modelFixtures.createRandomModel(anthropicErrorVendor.body.id, anthropicErrorModelName),
+            adminToken,
+        );
+        anthropicErrorModelId = anthropicErrorModel.body.id;
 
         // Verify vendor creation
         const vendorGet = await requestHelper.get(
@@ -297,6 +318,35 @@ describe("AI Messages API (Anthropic)", () => {
 
             expect(response.status).toBe(200);
             expect(response.body.type).toBe("message");
+        }, 30000);
+
+        it("should pass through Anthropic upstream 400 response", async () => {
+            const messageRequest = mockHelper.generateAnthropicMessageRequest({
+                model: anthropicErrorModelName,
+                stream: false,
+            });
+
+            const response = await requestHelper.postWithAnthropicStyleApiKey(
+                "/llm/v1/messages",
+                messageRequest,
+                testUserToken,
+            );
+
+            expect(response.status).toBe(400);
+            expect(response.body).toEqual({
+                type: "error",
+                error: {
+                    type: "invalid_request_error",
+                    message: `Not supported model ${anthropicErrorModelName}`,
+                },
+            });
+
+            const recordsResponse = await requestHelper.get("/record/latest.json?limit=1", adminToken);
+            const record = recordsResponse.body[0];
+            expect(record.user_id).toBe(testUserId);
+            expect(record.model_id).toBe(anthropicErrorModelId);
+            expect(record.status).toBe("failed");
+            expect(JSON.parse(record.response_data)).toEqual(response.body);
         }, 30000);
     });
 });

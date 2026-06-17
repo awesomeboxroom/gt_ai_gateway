@@ -17,6 +17,20 @@ async function waitForStreamLog(recordId: number): Promise<string> {
     throw new Error(`Stream log not found for record ${recordId}: ${logPath}`);
 }
 
+
+async function waitForRequestLog(recordId: number): Promise<string> {
+    const logPath = join(STREAM_LOG_DIR, `${recordId}.after_convert_req.log`);
+
+    for (let i = 0; i < 20; i++) {
+        if (existsSync(logPath)) {
+            return logPath;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    throw new Error(`Request log not found for record ${recordId}: ${logPath}`);
+}
+
 async function moveStreamLogToResource(
     recordId: number,
     targetFileName: string,
@@ -50,6 +64,12 @@ async function readStreamLog(recordId: number): Promise<string> {
 }
 
 
+async function readRequestLog(recordId: number): Promise<string> {
+    const sourcePath = await waitForRequestLog(recordId);
+    return readFileSync(sourcePath, "utf-8");
+}
+
+
 function normalizeStreamLog(content: string, targetFileName: string): string {
     if (targetFileName.includes("openai")) {
         const parts = content.split("data: [DONE]");
@@ -69,5 +89,6 @@ function normalizeStreamLog(content: string, targetFileName: string): string {
 
 export default {
     moveStreamLogToResource,
+    readRequestLog,
     readStreamLog,
 };

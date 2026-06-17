@@ -20,6 +20,8 @@ let openaiModelId: number;
 let openaiModelName: string;
 let anthropicModelId: number;
 let anthropicModelName: string;
+let openAIErrorModelId: number;
+let openAIErrorModelName: string;
 let adminToken: string;
 
 describe("AI Chat API", () => {
@@ -65,6 +67,25 @@ describe("AI Chat API", () => {
             adminToken,
         );
         openaiModelId = openaiModel.body.id;
+
+        const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+        const openAIErrorVendor = await requestHelper.post(
+            "/vendor/create.json",
+            {
+                type: "other",
+                name: "Mock OpenAI Error Vendor",
+                token: "mock-openai-error-token",
+                urls: { openai: `${mockBaseUrl}/chat/completions/error` },
+            },
+            adminToken,
+        );
+        openAIErrorModelName = `openai-error-model-${Date.now()}`;
+        const openAIErrorModel = await requestHelper.post(
+            "/model/create.json",
+            modelFixtures.createRandomModel(openAIErrorVendor.body.id, openAIErrorModelName),
+            adminToken,
+        );
+        openAIErrorModelId = openAIErrorModel.body.id;
 
         // Create Anthropic model
         const anthropicModel = await requestHelper.post(
@@ -371,5 +392,36 @@ describe("AI Chat API", () => {
             expect(response.status).toBe(200);
             expect(response.body.model).toBe(openaiModelName);
         });
+    });
+
+    describe("upstream error passthrough", () => {
+        it("should pass through OpenAI upstream 400 response", async () => {
+            const response = await requestHelper.post(
+                "/llm/v1/chat/completions",
+                {
+                    model: openAIErrorModelName,
+                    messages: [{ role: "user", content: "ping" }],
+                    stream: false,
+                },
+                testUserToken,
+            );
+
+            expect(response.status).toBe(400);
+            expect(response.body).toEqual({
+                error: {
+                    message: `Not supported model ${openAIErrorModelName}`,
+                    type: "invalid_request_error",
+                    param: "model",
+                    code: "model_not_supported",
+                },
+            });
+
+            const recordsResponse = await requestHelper.get("/record/latest.json?limit=1", adminToken);
+            const record = recordsResponse.body[0];
+            expect(record.user_id).toBe(testUserId);
+            expect(record.model_id).toBe(openAIErrorModelId);
+            expect(record.status).toBe("failed");
+            expect(JSON.parse(record.response_data)).toEqual(response.body);
+        }, 30000);
     });
 });

@@ -17,6 +17,8 @@ let openAIClientModelId: number;
 let openAIClientModelName: string;
 let anthropicClientModelId: number;
 let anthropicClientModelName: string;
+let responsesErrorModelId: number;
+let responsesErrorModelName: string;
 
 
 describe("AI Protocol Conversion API", () => {
@@ -69,6 +71,37 @@ describe("AI Protocol Conversion API", () => {
             adminToken,
         );
         anthropicClientModelId = anthropicClientModel.body.id;
+
+        const responsesErrorVendor = await requestHelper.post(
+            "/vendor/create.json",
+            {
+                type: "other",
+                name: "Mock Responses Error Conversion",
+                token: "responses-error-conversion-token",
+                urls: { responses: `${mockBaseUrl}/responses/error` },
+            },
+            adminToken,
+        );
+        const addResponsesVendorModel = await requestHelper.post(
+            `/vendor/${responsesErrorVendor.body.id}/model/add.json`,
+            { model_id: "unsupported-upstream-model" },
+            adminToken,
+        );
+        await requestHelper.put(
+            `/vendor/${responsesErrorVendor.body.id}/model/${addResponsesVendorModel.body.id}.json`,
+            { allowed_formats: ["responses"] },
+            adminToken,
+        );
+        responsesErrorModelName = `anthropic-client-responses-error-${Date.now()}`;
+        const responsesErrorModel = await requestHelper.post(
+            "/model/create.json",
+            {
+                ...modelFixtures.createRandomModel(responsesErrorVendor.body.id, responsesErrorModelName),
+                vendor_model_id: addResponsesVendorModel.body.id,
+            },
+            adminToken,
+        );
+        responsesErrorModelId = responsesErrorModel.body.id;
     });
 
 
@@ -205,5 +238,35 @@ describe("AI Protocol Conversion API", () => {
         expect(usageB.prompt_tokens).toBe(responseData.usage.prompt_tokens);
         expect(usageB.completion_tokens).toBe(responseData.usage.completion_tokens);
         expect(usageB.cache_read_tokens).toBe(responseData.usage.cache_read_tokens);
+    }, 30000);
+
+
+    it("should pass through upstream non-2xx response without protocol conversion", async () => {
+        const messageRequest = mockHelper.generateAnthropicMessageRequest({
+            model: responsesErrorModelName,
+            stream: false,
+        });
+
+        const response = await requestHelper.postWithAnthropicStyleApiKey(
+            "/llm/v1/messages",
+            messageRequest,
+            testUserToken,
+        );
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({
+            error: {
+                code: "400",
+                message: "Param Incorrect",
+                param: "Not supported model unsupported-upstream-model",
+            },
+        });
+
+        const recordsResponse = await requestHelper.get("/record/latest.json?limit=1", adminToken);
+        const record = recordsResponse.body[0];
+        expect(record.user_id).toBe(testUserId);
+        expect(record.model_id).toBe(responsesErrorModelId);
+        expect(record.status).toBe("failed");
+        expect(JSON.parse(record.response_data)).toEqual(response.body);
     }, 30000);
 });

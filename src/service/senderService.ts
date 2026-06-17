@@ -18,10 +18,12 @@ import userService from "./userService";
 import customError from "../util/customError";
 import { ConverterFactory } from "../util/protocolConverter/ConverterFactory";
 import { rewriteCchInSystemPrompt } from "../util/cchRewriter";
+import { injectResponsesPromptCacheKey } from "../util/responsesPromptCacheKeyRewriter";
 import type { BaseConverter } from "../util/protocolConverter/BaseConverter";
 import type { ProtocolStreamEvent } from "../util/protocolConverter/protocolTypes";
 import sseEvent from "../util/sseEvent";
 import configService from "./configService";
+import hostService from "./hostService";
 import { runInBackground } from "../util/runInBackground";
 
 function calculateCost(
@@ -385,6 +387,27 @@ async function handleNonStreamResponse(
     const statusCode = upstreamRes.status as StatusCode;
     const needsConversion = format !== upstreamFormat;
 
+    if (!upstreamRes.ok) {
+        console.error("[senderService] Upstream non-stream error response:", {
+            recordId: record.id,
+            status: statusCode,
+            contentType: upstreamRes.headers.get("content-type"),
+            body: responseText,
+        });
+
+        await recordService.update(record.id, {
+            response_data: responseText,
+            status: SgRecordStatus.FAILED,
+            usage: null,
+            end_at: new Date(),
+            cost: 0,
+        });
+
+        c.status(statusCode);
+        c.res.headers.set("Content-Type", upstreamRes.headers.get("content-type") || "application/json");
+        return c.body(responseText);
+    }
+
     let clientResponseText = responseText;
     if (needsConversion && converter) {
         try {
@@ -608,6 +631,27 @@ async function handleResponsesNonStreamResponse(
     const statusCode = upstreamRes.status as StatusCode;
     const needsConversion = converter !== null;
 
+    if (!upstreamRes.ok) {
+        console.error("[senderService] Upstream responses non-stream error response:", {
+            recordId: record.id,
+            status: statusCode,
+            contentType: upstreamRes.headers.get("content-type"),
+            body: responseText,
+        });
+
+        await recordService.update(record.id, {
+            response_data: responseText,
+            status: SgRecordStatus.FAILED,
+            usage: null,
+            end_at: new Date(),
+            cost: 0,
+        });
+
+        c.status(statusCode);
+        c.res.headers.set("Content-Type", upstreamRes.headers.get("content-type") || "application/json");
+        return c.body(responseText);
+    }
+
     let clientResponseText = responseText;
     if (needsConversion && converter) {
         try {
@@ -784,6 +828,11 @@ async function sendRequest(
         } catch (e) {
             console.log("Failed to inject stream_options:", e);
         }
+    }
+
+    if (upstreamFormat === ApiFormat.RESPONSES && await configService.isResponsesPromptCacheKeyEnabled()) {
+        const hostKey = await hostService.getResponsesPromptCacheHostKey();
+        upstreamBody = injectResponsesPromptCacheKey(upstreamBody, hostKey, user.name);
     }
 
     await writeRequestLog(record, upstreamBody);

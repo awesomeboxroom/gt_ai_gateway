@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import requestHelper from "../../helpers/requestHelper";
 import mockHelper from "../../helpers/mockHelper";
 import modelFixtures from "../../fixtures/modelFixtures";
@@ -16,6 +16,8 @@ let testUserToken: string;
 let responsesVendorId: number;
 let responsesModelId: number;
 let responsesModelName: string;
+let responsesErrorModelId: number;
+let responsesErrorModelName: string;
 let adminToken: string;
 
 describe("AI Responses API", () => {
@@ -52,6 +54,33 @@ describe("AI Responses API", () => {
             adminToken,
         );
         responsesModelId = modelResponse.body.id;
+
+        const errorVendorResponse = await requestHelper.post(
+            "/vendor/create.json",
+            {
+                type: "other",
+                name: "Mock Responses Error Vendor",
+                token: "mock-responses-error-token",
+                urls: { responses: `${mockBaseUrl}/responses/error` },
+            },
+            adminToken,
+        );
+        responsesErrorModelName = `responses-error-model-${Date.now()}`;
+        const errorModelResponse = await requestHelper.post(
+            "/model/create.json",
+            modelFixtures.createRandomModel(errorVendorResponse.body.id, responsesErrorModelName),
+            adminToken,
+        );
+        responsesErrorModelId = errorModelResponse.body.id;
+    });
+
+    afterAll(async () => {
+        if (!adminToken) return;
+        await requestHelper.put(
+            "/config.json",
+            { responses_prompt_cache_key_enabled: false },
+            adminToken,
+        );
     });
 
     describe("POST /llm/v1/responses", () => {
@@ -92,9 +121,21 @@ describe("AI Responses API", () => {
             expect(usageR1.prompt_tokens).toBeGreaterThan(0);
             expect(usageR1.completion_tokens).toBeGreaterThan(0);
             expect(usageR1.cache_read_tokens).toBe(4);
+
+            if (config.TEST_MODE === "node" && process.env.STREAM_LOG_ENABLED === "true") {
+                const requestLog = await streamLogHelper.readRequestLog(record.id);
+                const upstreamReq = JSON.parse(requestLog);
+                expect(upstreamReq.prompt_cache_key).toBeUndefined();
+            }
         }, 30000);
 
         it("should handle streaming responses request", async () => {
+            await requestHelper.put(
+                "/config.json",
+                { responses_prompt_cache_key_enabled: true },
+                adminToken,
+            );
+
             const req = mockHelper.generateResponsesRequest({
                 model: responsesModelName,
                 stream: true,
@@ -133,7 +174,40 @@ describe("AI Responses API", () => {
                 expect(streamLog).toContain("response.created");
                 expect(streamLog).toContain("response.output_text.delta");
                 expect(streamLog).toContain("response.completed");
+
+                const requestLog = await streamLogHelper.readRequestLog(record.id);
+                const upstreamReq = JSON.parse(requestLog);
+                expect(upstreamReq.prompt_cache_key).toMatch(/^[0-9a-f]{8}:.+/);
             }
+        }, 30000);
+
+        it("should pass through Responses upstream 400 response", async () => {
+            const req = mockHelper.generateResponsesRequest({
+                model: responsesErrorModelName,
+                stream: false,
+            });
+
+            const response = await requestHelper.post(
+                "/llm/v1/responses",
+                req,
+                testUserToken,
+            );
+
+            expect(response.status).toBe(400);
+            expect(response.body).toEqual({
+                error: {
+                    code: "400",
+                    message: "Param Incorrect",
+                    param: `Not supported model ${responsesErrorModelName}`,
+                },
+            });
+
+            const recordsResponse = await requestHelper.get("/record/latest.json?limit=1", adminToken);
+            const record = recordsResponse.body[0];
+            expect(record.user_id).toBe(testUserId);
+            expect(record.model_id).toBe(responsesErrorModelId);
+            expect(record.status).toBe("failed");
+            expect(JSON.parse(record.response_data)).toEqual(response.body);
         }, 30000);
     });
 });

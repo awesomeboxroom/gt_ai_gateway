@@ -1,6 +1,7 @@
 import { SgConfig } from "../model/sgConfig";
 
 const CCH_REWRITE_ENABLED = "cch_rewrite_enabled";
+const RESPONSES_PROMPT_CACHE_KEY_ENABLED = "responses_prompt_cache_key_enabled";
 type ConfigMap = Record<string, string | boolean | number | null>;
 
 function parseValue(value: string): string | boolean | number | null {
@@ -53,6 +54,9 @@ async function getAll(): Promise<ConfigMap> {
     if (result[CCH_REWRITE_ENABLED] === undefined) {
         result[CCH_REWRITE_ENABLED] = false;
     }
+    if (result[RESPONSES_PROMPT_CACHE_KEY_ENABLED] === undefined) {
+        result[RESPONSES_PROMPT_CACHE_KEY_ENABLED] = false;
+    }
 
     return result;
 }
@@ -69,6 +73,11 @@ async function isCchRewriteEnabled(): Promise<boolean> {
     return await getBoolean(CCH_REWRITE_ENABLED, false);
 }
 
+
+async function isResponsesPromptCacheKeyEnabled(): Promise<boolean> {
+    return await getBoolean(RESPONSES_PROMPT_CACHE_KEY_ENABLED, false);
+}
+
 export default {
     getValue,
     setValue,
@@ -77,4 +86,5 @@ export default {
     getAll,
     updateAll,
     isCchRewriteEnabled,
+    isResponsesPromptCacheKeyEnabled,
 };

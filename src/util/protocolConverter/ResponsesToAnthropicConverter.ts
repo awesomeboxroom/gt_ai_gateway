@@ -61,10 +61,12 @@ export class ResponsesToAnthropicConverter extends BaseConverter {
             systemText = req.instructions;
         }
 
-        // input → messages
-        const input = Array.isArray(req.input) ? req.input : [];
-        for (const item of input) {
-            this.convertInputItem(item, messages, systemText ? undefined : (t) => { systemText = t; });
+        if (typeof req.input === "string") {
+            messages.push({ role: "user", content: req.input });
+        } else {
+            for (const item of req.input) {
+                this.convertInputItem(item, messages, systemText ? undefined : (t) => { systemText = t; });
+            }
         }
 
         const anthropicReq: AnthropicRequest = {
