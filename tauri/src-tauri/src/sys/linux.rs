@@ -26,6 +26,6 @@ pub fn setup_command(cmd: &mut Command) -> PlatformState {
     crate::sys::unix::setup_pty_command(cmd)
 }
 
-pub fn post_spawn(state: &mut PlatformState) {
-    crate::sys::unix::post_spawn(state);
+pub fn post_spawn(state: &mut PlatformState, child: &mut std::process::Child) {
+    crate::sys::unix::post_spawn(state, child)
 }

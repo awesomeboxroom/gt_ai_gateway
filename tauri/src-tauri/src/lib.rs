@@ -198,7 +198,7 @@ pub fn run() {
             let mut child = cmd.spawn().expect("failed to spawn backend sidecar");
             let stdout = child.stdout.take();
 
-            sys::platform::post_spawn(&mut state);
+            sys::platform::post_spawn(&mut state, &mut child);
             app.manage(state);
 
             let app_handle_clone = app.handle().clone();
