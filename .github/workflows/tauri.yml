@@ -156,17 +156,32 @@ jobs:
           $artifactsDir = "windows-artifacts"
           New-Item -ItemType Directory -Force -Path $artifactsDir | Out-Null
           
+          # 1. NSIS setup
           Get-ChildItem "tauri" -Recurse -Include "*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*setup*" } | Copy-Item -Destination $artifactsDir -Force -ErrorAction SilentlyContinue
           
+          # 2. Portable Folder
           $portableDir = "$artifactsDir\GT_AI_Gateway_Portable"
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-          $releaseDir = "tauri\src-tauri\target\x86_64-pc-windows-msvc\release"
-          Copy-Item -Path "$releaseDir\ai-gateway.exe" -Destination $portableDir -Force -ErrorAction SilentlyContinue
-          Copy-Item -Path "$releaseDir\ai-gateway-backend-x86_64-pc-windows-msvc.exe" -Destination $portableDir -Force -ErrorAction SilentlyContinue
-          if (Test-Path "$releaseDir\icons") { Copy-Item -Path "$releaseDir\icons" -Destination $portableDir -Recurse -Force }
-          if (Test-Path "$releaseDir\resource") { Copy-Item -Path "$releaseDir\resource" -Destination $portableDir -Recurse -Force }
           
-          Compress-Archive -Path $portableDir -DestinationPath "$artifactsDir\GT_AI_Gateway_Portable.zip" -Force
+          # Main exe
+          $releaseDir = "tauri\src-tauri\target\x86_64-pc-windows-msvc\release"
+          Get-ChildItem $releaseDir -File | Where-Object { $_.Name -match "^ai-gateway\.exe$" -or $_.Name -match "^GT AI Gateway\.exe$" } | Copy-Item -Destination $portableDir -Force
+          
+          # Sidecar
+          $sidecarPath = "tauri\build\binaries\ai-gateway-backend-x86_64-pc-windows-msvc.exe"
+          if (Test-Path $sidecarPath) { Copy-Item -Path $sidecarPath -Destination $portableDir -Force }
+          
+          # Resources
+          if (Test-Path "resource\migrate") {
+              $resourceDest = "$portableDir\resource\migrate"
+              New-Item -ItemType Directory -Force -Path $resourceDest | Out-Null
+              Copy-Item -Path "resource\migrate\*" -Destination $resourceDest -Recurse -Force
+          }
+          
+          Write-Host "Portable folder contents:"
+          Get-ChildItem $portableDir -Recurse | ForEach-Object { Write-Host $_.FullName }
+          
+          Compress-Archive -Path "$portableDir\*" -DestinationPath "$artifactsDir\GT_AI_Gateway_Portable.zip" -Force
           Remove-Item -Recurse -Force $portableDir
           
           Get-ChildItem $artifactsDir | ForEach-Object { Write-Host "UPLOAD: $($_.Name) ($($_.Length) bytes)" }
