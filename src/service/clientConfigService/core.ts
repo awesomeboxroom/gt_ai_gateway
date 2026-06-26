@@ -17,6 +17,7 @@ import type {
 } from "./types";
 import ClaudeCodeConfigAdapter from "./claudeCodeConfigAdapter";
 import CodexConfigAdapter from "./codexConfigAdapter";
+import configAdapterUtils from "./configAdapterUtils";
 
 
 function getHomeDir(): string {
@@ -90,6 +91,7 @@ function isEnabled(value: unknown): boolean {
 
 
 async function toBackupInfo(record: any, adapter: ConfigAdapter): Promise<ClientConfigBackupInfo> {
+    const parsedConfig = await adapter.parseConfigContent(record.configContent || {});
     return {
         id: Number(record.id),
         client: record.client as ClientName,
@@ -97,7 +99,8 @@ async function toBackupInfo(record: any, adapter: ConfigAdapter): Promise<Client
         fileCount: Object.keys(record.configContent || {}).length,
         createdAt: String(record.created_at || record.createdAt || ""),
         enabled: isEnabled(record.enabled),
-        config: await adapter.parseConfigContent(record.configContent || {}),
+        config: await configAdapterUtils.enrichGatewayUser(parsedConfig),
+        configContent: typeof record.configContent === "string" ? JSON.parse(record.configContent) : record.configContent || {},
     };
 }
 

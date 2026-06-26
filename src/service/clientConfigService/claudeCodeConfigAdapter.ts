@@ -5,6 +5,8 @@ import { ClientName } from "../../constants";
 
 
 class ClaudeCodeConfigAdapter extends BaseConfigAdapter {
+    readonly defaultGatewaySuffix = "/llm";
+
     constructor(fs: FileSystemApi, path: PathApi, homeDir: string) {
         super(fs, path, ClientName.CLAUDE_CODE, "Claude Code", path.join(homeDir, ".claude", "settings.json"));
     }
@@ -33,48 +35,19 @@ class ClaudeCodeConfigAdapter extends BaseConfigAdapter {
             return null;
         }
 
-        const gatewayUser = await configAdapterUtils.findGatewayUserByToken(token);
         return {
             configPath: this.configPath,
-            connectionMode: gatewayUser ? "gateway" : "vendor",
+            connectionMode: config.env?.ANTHROPIC_BASE_URL?.includes(this.defaultGatewaySuffix) ? "gateway" : "vendor", // Approximate deduction
             backendUrl,
             token,
             model: config.env?.ANTHROPIC_MODEL || config.env?.CLAUDE_CODE_SUBAGENT_MODEL || config.model || "",
             protocol: "anthropic",
-            gatewayUser,
         };
     }
 
 
     async getStatus(): Promise<ClientConfigStatus> {
-        const installed = await this.isInstalled();
-        let configured = false;
-        let message: string | undefined;
-        let currentConfig: CurrentClientConfig | null = null;
-
-        if (installed && await configAdapterUtils.pathExists(this.fs, this.configPath)) {
-            try {
-                currentConfig = await this.parseConfigContent({ [this.configPath]: await this.readConfigFile() });
-                configured = Boolean(currentConfig);
-            } catch (error) {
-                message = `配置文件解析失败: ${String(error)}`;
-            }
-        }
-
-        return {
-            client: this.client,
-            displayName: this.displayName,
-            installed,
-            configured,
-            backupExists: false,
-            backupCount: 0,
-            backups: [],
-            activeConfigModified: false,
-            currentConfig,
-            configPath: this.configPath,
-            configPaths: this.configPaths,
-            message,
-        };
+        return await configAdapterUtils.buildClientStatus(this, this.fs);
     }
 
 

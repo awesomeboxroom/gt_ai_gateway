@@ -15,6 +15,7 @@ abstract class BaseConfigAdapter implements ConfigAdapter {
     protected path: PathApi;
     readonly client: ClientName;
     readonly displayName: string;
+    abstract readonly defaultGatewaySuffix: string;
     readonly configPath: string;
     readonly configPaths: string[];
 
@@ -35,7 +36,7 @@ abstract class BaseConfigAdapter implements ConfigAdapter {
     }
 
 
-    protected async isInstalled(): Promise<boolean> {
+    async isInstalled(): Promise<boolean> {
         return await configAdapterUtils.pathExists(this.fs, this.path.dirname(this.configPath));
     }
 
@@ -79,6 +80,14 @@ abstract class BaseConfigAdapter implements ConfigAdapter {
 
             await this.fs.mkdir(this.path.dirname(filePath), { recursive: true });
             await this.fs.writeFile(filePath, content, "utf-8");
+        }
+
+        for (const filePath of this.configPaths) {
+            if (!(filePath in configContent)) {
+                if (await configAdapterUtils.pathExists(this.fs, filePath)) {
+                    await this.fs.unlink(filePath);
+                }
+            }
         }
 
         return await this.getStatus();

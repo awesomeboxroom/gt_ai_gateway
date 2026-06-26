@@ -668,7 +668,7 @@ async function openConfigDialog(client: ClientConfigStatus, backup?: ClientConfi
     } else {
         configForm.connectionMode = 'gateway';
         configForm.protocol = protocolByClient[client.client];
-        configForm.gatewayUrl = getDefaultGatewayUrl(client.client);
+        configForm.gatewayUrl = getDefaultGatewayUrl(client);
         configForm.upstreamUrl = '';
         configForm.userId = null;
         configForm.vendorId = null;
@@ -694,7 +694,7 @@ async function openConfigDialog(client: ClientConfigStatus, backup?: ClientConfi
     }
 }
 
-function getDefaultGatewayUrl(clientName?: ClientName): string {
+function getDefaultGatewayUrl(client?: ClientConfigStatus): string {
     const baseUrl = getBaseURL();
     let url = '';
     if (/^https?:\/\//.test(baseUrl)) {
@@ -705,10 +705,8 @@ function getDefaultGatewayUrl(clientName?: ClientName): string {
         url = window.location.origin.replace('://localhost', '://127.0.0.1');
     }
 
-    if (clientName === ClientName.CLAUDE_CODE) {
-        return `${url}/llm`;
-    } else if (clientName === ClientName.CODEX) {
-        return `${url}/llm/v1`;
+    if (client && client.defaultGatewaySuffix) {
+        return `${url}${client.defaultGatewaySuffix}`;
     }
     return url;
 }

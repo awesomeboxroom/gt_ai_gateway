@@ -19,6 +19,7 @@ export interface ClientConfigStatus {
     activeBackupId?: number;
     activeConfigModified: boolean;
     currentConfig: CurrentClientConfig | null;
+    defaultGatewaySuffix: string;
     configPath: string;
     configPaths: string[];
     message?: string;

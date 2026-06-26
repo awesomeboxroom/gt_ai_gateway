@@ -6,12 +6,20 @@ import { ClientName } from "../../constants";
 
 
 class CodexConfigAdapter extends BaseConfigAdapter {
+    readonly authPath: string;
+    readonly defaultGatewaySuffix = "/llm/v1";
+
     constructor(fs: FileSystemApi, path: PathApi, homeDir: string) {
         const codexHome = process.env.CODEX_HOME || path.join(homeDir, ".codex");
-        super(fs, path, ClientName.CODEX, "Codex", path.join(codexHome, "config.toml"), [
+        super(
+            fs,
+            path,
+            ClientName.CODEX,
+            "Codex",
             path.join(codexHome, "config.toml"),
-            path.join(codexHome, "auth.json"),
-        ]);
+            [path.join(codexHome, "config.toml"), path.join(codexHome, "auth.json")],
+        );
+        this.authPath = this.configPaths[1];
     }
 
     private buildBaseUrl(params: CreateClientConfigParams): string {
@@ -39,48 +47,19 @@ class CodexConfigAdapter extends BaseConfigAdapter {
             return null;
         }
 
-        const gatewayUser = await configAdapterUtils.findGatewayUserByToken(token);
         return {
             configPath: this.configPath,
-            connectionMode: gatewayUser ? "gateway" : "vendor",
+            connectionMode: backendUrl?.includes(this.defaultGatewaySuffix) ? "gateway" : "vendor",
             backendUrl,
             token,
             model: tomlUtil.getTomlValue(content, "model") || "",
             protocol: "responses",
-            gatewayUser,
         };
     }
 
 
     async getStatus(): Promise<ClientConfigStatus> {
-        const installed = await this.isInstalled();
-        let configured = false;
-        let message: string | undefined;
-        let currentConfig: CurrentClientConfig | null = null;
-
-        if (installed && await configAdapterUtils.pathExists(this.fs, this.configPath)) {
-            try {
-                currentConfig = await this.parseConfigContent({ [this.configPath]: await this.readConfigFile() });
-                configured = Boolean(currentConfig);
-            } catch (error) {
-                message = `配置文件读取失败: ${String(error)}`;
-            }
-        }
-
-        return {
-            client: this.client,
-            displayName: this.displayName,
-            installed,
-            configured,
-            backupExists: false,
-            backupCount: 0,
-            backups: [],
-            activeConfigModified: false,
-            currentConfig,
-            configPath: this.configPath,
-            configPaths: this.configPaths,
-            message,
-        };
+        return await configAdapterUtils.buildClientStatus(this, this.fs);
     }
 
 

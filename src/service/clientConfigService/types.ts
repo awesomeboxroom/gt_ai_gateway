@@ -57,7 +57,8 @@ interface ClientConfigStatus {
     backups: ClientConfigBackupInfo[];
     activeBackupId?: number;
     activeConfigModified: boolean;
-    currentConfig: CurrentClientConfig | null;
+    currentConfig: CurrentClientConfigWithUser | null;
+    defaultGatewaySuffix: string;
     configPath: string;
     configPaths: string[];
     message?: string;
@@ -70,6 +71,9 @@ interface CurrentClientConfig {
     token: string;
     model: string;
     protocol: ClientProtocol;
+}
+
+interface CurrentClientConfigWithUser extends CurrentClientConfig {
     gatewayUser: GatewayUserInfo | null;
 }
 
@@ -95,6 +99,7 @@ interface FileSystemApi {
     mkdir(path: string, options: { recursive: boolean }): Promise<string | undefined>;
     readFile(path: string, encoding: "utf-8"): Promise<string>;
     writeFile(path: string, content: string, encoding: "utf-8"): Promise<void>;
+    unlink(path: string): Promise<void>;
 }
 
 interface PathApi {
@@ -105,9 +110,11 @@ interface PathApi {
 interface ConfigAdapter {
     readonly client: ClientName;
     readonly displayName: string;
+    readonly defaultGatewaySuffix: string;
     readonly configPath: string;
     readonly configPaths: string[];
 
+    isInstalled(): Promise<boolean>;
     getStatus(): Promise<ClientConfigStatus>;
     buildConfigContent(params: CreateClientConfigParams): Promise<ClientConfigContent>;
     parseConfigContent(configContent: ClientConfigContent): Promise<CurrentClientConfig | null>;
@@ -127,6 +134,7 @@ export type {
     CreateClientConfigBackupParams,
     CreateClientConfigParams,
     CurrentClientConfig,
+    CurrentClientConfigWithUser,
     DeleteClientConfigBackupParams,
     FileSystemApi,
     GatewayUserInfo,
