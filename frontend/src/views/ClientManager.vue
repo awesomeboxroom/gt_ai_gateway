@@ -121,7 +121,14 @@
                                         :key="backup.id"
                                         class="config-row saved-config-row"
                                     >
-                                        <div class="icon-placeholder"></div>
+                                        <div class="icon-placeholder" style="display: flex; align-items: center; justify-content: center;" v-if="restoringBackupId === backup.id">
+                                            <a-spin size="small" />
+                                        </div>
+                                        <div
+                                            v-else
+                                            class="empty-check-circle"
+                                            @click="restoreConfig(client.client, backup.id)"
+                                        ></div>
                                         <div class="config-row-content">
                                             <div class="config-row-name config-row-name-with-action">
                                                 <span>{{ backup.name }}</span>
@@ -172,15 +179,7 @@
                                                 <InfoCircleOutlined />
                                                 查看
                                             </a-button>
-                                            <a-button
-                                                size="small"
-                                                style="font-size: 13px;"
-                                                type="link"
-                                                :loading="restoringBackupId === backup.id"
-                                                @click="restoreConfig(client.client, backup.id)"
-                                            >
-                                                切换
-                                            </a-button>
+
                                         </div>
                                     </div>
 
@@ -1157,6 +1156,21 @@ function updateBackupInfo(backup: ClientConfigBackupInfo): void {
 .icon-placeholder {
     width: 20px;
     height: 20px;
+}
+
+.empty-check-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid #d9d9d9;
+    cursor: pointer;
+    background-color: #fff;
+    transition: all 0.3s;
+    flex-shrink: 0;
+}
+
+.empty-check-circle:hover {
+    border-color: #1677ff;
 }
 
 .config-row-name {
