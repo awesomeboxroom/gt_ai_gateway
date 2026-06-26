@@ -13,6 +13,7 @@ import type {
     FileSystemApi,
     PathApi,
     RenameClientConfigBackupParams,
+    CurrentClientConfig,
 } from "./types";
 import ClaudeCodeConfigAdapter from "./claudeCodeConfigAdapter";
 import CodexConfigAdapter from "./codexConfigAdapter";
@@ -143,7 +144,21 @@ async function enrichStatus(status: ClientConfigStatus, adapter: ConfigAdapter):
     let activeConfigModified = false;
     if (activeRecord) {
         const currentContent = await adapter.readConfigFiles();
-        activeConfigModified = serializeConfigContent(activeRecord.configContent) !== serializeConfigContent(currentContent);
+        const activeConfig = await adapter.parseConfigContent(activeRecord.configContent);
+        const currentConfig = await adapter.parseConfigContent(currentContent);
+
+        if (activeConfig && currentConfig) {
+            const serializeRelevant = (c: CurrentClientConfig) => JSON.stringify({
+                connectionMode: c.connectionMode,
+                backendUrl: c.backendUrl,
+                token: c.token,
+                model: c.model,
+                protocol: c.protocol,
+            });
+            activeConfigModified = serializeRelevant(activeConfig) !== serializeRelevant(currentConfig);
+        } else {
+            activeConfigModified = serializeConfigContent(activeRecord.configContent) !== serializeConfigContent(currentContent);
+        }
     }
 
     return {
