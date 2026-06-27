@@ -208,7 +208,6 @@ describe("clientConfigService", () => {
         const status = await clientConfigService.createConfig({
             client: ClientName.CLAUDE_CODE,
             connectionMode: "vendor",
-            protocol: "anthropic",
             gatewayUrl: "https://api.anthropic.com/v1/messages",
             apiKey: "vendor-token",
             model: "claude-sonnet",
@@ -229,7 +228,6 @@ describe("clientConfigService", () => {
         const status = await clientConfigService.createConfig({
             client: ClientName.CODEX,
             connectionMode: "vendor",
-            protocol: "responses",
             gatewayUrl: "https://api.openai.com/v1/chat/completions",
             apiKey: "vendor-token",
             model: "gpt-5",

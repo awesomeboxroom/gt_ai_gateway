@@ -40,6 +40,7 @@ interface ClientConfigStatusResponse {
 interface AdapterConfigStatus {
     client: ClientName;
     displayName: string;
+    protocol: ClientProtocol;
     installed: boolean;
     configured: boolean;
     currentConfig: ClientConfigFields | null;
@@ -101,6 +102,7 @@ type ClientConfigFileSystemContent = Record<string, string>;
 interface ConfigAdapter {
     readonly client: ClientName;
     readonly displayName: string;
+    readonly protocol: ClientProtocol;
     readonly configPath: string;
     readonly configPaths: string[];
     readonly defaultGatewaySuffix: string;

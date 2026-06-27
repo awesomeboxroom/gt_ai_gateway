@@ -8,7 +8,6 @@ type ClientProtocol = "anthropic" | "responses";
 
 interface ClientConfigFields {
     connectionMode?: ConnectionMode;
-    protocol?: ClientProtocol;
     gatewayUrl: string;
     apiKey: string;
     model: string;

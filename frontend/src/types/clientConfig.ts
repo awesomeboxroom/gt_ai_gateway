@@ -11,6 +11,7 @@ export type ClientProtocol = 'anthropic' | 'responses';
 export interface ClientConfigStatus {
     client: ClientName;
     displayName: string;
+    protocol: ClientProtocol;
     installed: boolean;
     configured: boolean;
     backupExists: boolean;
@@ -31,7 +32,6 @@ export interface CurrentClientConfig {
     gatewayUrl: string;
     apiKey: string;
     model: string;
-    protocol: ClientProtocol;
     gatewayUser: GatewayUserInfo | null;
     effortLevel?: string;
 }
@@ -62,7 +62,6 @@ export interface ClientConfigStatusResponse {
 export interface CreateClientConfigRequest {
     client: ClientName;
     connectionMode?: ClientConnectionMode;
-    protocol?: ClientProtocol;
     gatewayUrl: string;
     apiKey: string;
     model: string;

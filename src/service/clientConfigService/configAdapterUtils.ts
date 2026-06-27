@@ -70,6 +70,7 @@ async function buildClientStatus(adapter: ConfigAdapter, fs: FileSystemApi): Pro
     return {
         client: adapter.client,
         displayName: adapter.displayName,
+        protocol: adapter.protocol,
         defaultGatewaySuffix: adapter.defaultGatewaySuffix,
         installed,
         configured,

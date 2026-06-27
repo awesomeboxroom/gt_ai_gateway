@@ -1,6 +1,7 @@
 import type {
-    ClientConfigFileSystemContent,
     ClientConfigFields,
+    ClientConfigFileSystemContent,
+    ClientProtocol,
     ClientName,
     ConfigAdapter,
     FileSystemApi,
@@ -16,6 +17,7 @@ abstract class BaseConfigAdapter implements ConfigAdapter {
     protected path: PathApi;
     readonly client: ClientName;
     readonly displayName: string;
+    abstract readonly protocol: ClientProtocol;
     abstract readonly defaultGatewaySuffix: string;
     readonly configPath: string;
     readonly configPaths: string[];

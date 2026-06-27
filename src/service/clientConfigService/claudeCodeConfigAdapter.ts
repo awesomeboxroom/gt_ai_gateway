@@ -1,10 +1,11 @@
-import type { ClientConfigFileSystemContent, ClientConfigFields, FileSystemApi, PathApi } from "./types";
+import type { ClientConfigFileSystemContent, ClientConfigFields, ClientProtocol, FileSystemApi, PathApi } from "./types";
 import BaseConfigAdapter from "./baseConfigAdapter";
 import configAdapterUtils from "./configAdapterUtils";
 import { ClientName } from "../../constants";
 
 
 class ClaudeCodeConfigAdapter extends BaseConfigAdapter {
+    readonly protocol: ClientProtocol = "anthropic";
     readonly defaultGatewaySuffix = "/llm";
 
     constructor(fs: FileSystemApi, path: PathApi, homeDir: string) {
@@ -42,7 +43,6 @@ class ClaudeCodeConfigAdapter extends BaseConfigAdapter {
             gatewayUrl: backendUrl,
             apiKey: token,
             model: config.env?.ANTHROPIC_MODEL || config.env?.CLAUDE_CODE_SUBAGENT_MODEL || config.model || "",
-            protocol: "anthropic",
             effortLevel: config.env?.CLAUDE_CODE_EFFORT_LEVEL || "",
         };
     }

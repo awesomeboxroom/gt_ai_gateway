@@ -581,10 +581,7 @@ const renameForm = reactive<{
     name: '',
 });
 
-const protocolByClient: Record<ClientName, ClientProtocol> = {
-    [ClientName.CLAUDE_CODE]: 'anthropic',
-    [ClientName.CODEX]: 'responses',
-};
+
 
 const clientProtocolLabels: Record<ClientName, string> = {
     [ClientName.CLAUDE_CODE]: 'Anthropic',
@@ -632,7 +629,7 @@ async function openConfigDialog(client: ClientConfigStatus, backup?: ClientConfi
 
     if (backup && backup.config) {
         configForm.connectionMode = backup.config.connectionMode;
-        configForm.protocol = backup.config.protocol || protocolByClient[client.client];
+        configForm.protocol = client.protocol;
         configForm.effortLevel = backup.config.effortLevel;
 
         if (backup.config.connectionMode === 'gateway') {
@@ -667,7 +664,7 @@ async function openConfigDialog(client: ClientConfigStatus, backup?: ClientConfi
         }
     } else {
         configForm.connectionMode = 'gateway';
-        configForm.protocol = protocolByClient[client.client];
+        configForm.protocol = client.protocol;
         configForm.gatewayUrl = getDefaultGatewayUrl(client);
         configForm.upstreamUrl = '';
         configForm.userId = null;
@@ -808,7 +805,6 @@ function buildApplyRequest() {
         return {
             client: configForm.client,
             connectionMode: 'gateway' as const,
-            protocol: configForm.protocol,
             gatewayUrl: configForm.gatewayUrl,
             apiKey: user.token,
             model: configForm.model,
@@ -835,7 +831,6 @@ function buildApplyRequest() {
     return {
         client: configForm.client,
         connectionMode: 'vendor' as const,
-        protocol: configForm.protocol,
         gatewayUrl: configForm.upstreamUrl,
         apiKey: vendor.token,
         model: configForm.upstreamModel,

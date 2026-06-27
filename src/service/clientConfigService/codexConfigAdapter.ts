@@ -1,4 +1,4 @@
-import type { ClientConfigFileSystemContent, ClientConfigFields, FileSystemApi, PathApi } from "./types";
+import type { ClientConfigFileSystemContent, ClientConfigFields, ClientProtocol, FileSystemApi, PathApi } from "./types";
 import BaseConfigAdapter from "./baseConfigAdapter";
 import configAdapterUtils from "./configAdapterUtils";
 import tomlUtil from "../../util/tomlUtil";
@@ -7,6 +7,7 @@ import { ClientName } from "../../constants";
 
 class CodexConfigAdapter extends BaseConfigAdapter {
     readonly authPath: string;
+    readonly protocol: ClientProtocol = "responses";
     readonly defaultGatewaySuffix = "/llm/v1";
 
     constructor(fs: FileSystemApi, path: PathApi, homeDir: string) {
@@ -54,7 +55,6 @@ class CodexConfigAdapter extends BaseConfigAdapter {
             gatewayUrl: backendUrl,
             apiKey: token,
             model: tomlUtil.getTomlValue(content, "model") || "",
-            protocol: "responses",
         };
     }
 

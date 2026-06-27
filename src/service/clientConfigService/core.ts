@@ -181,7 +181,6 @@ async function enrichStatus(adapterStatus: AdapterConfigStatus, adapter: ConfigA
                 gatewayUrl: c.gatewayUrl,
                 apiKey: c.apiKey,
                 model: c.model,
-                protocol: c.protocol,
             });
             activeConfigModified = serializeRelevant(activeConfig) !== serializeRelevant(currentConfig);
         }
@@ -240,7 +239,6 @@ async function createConfig(params: CreateClientConfigParams): Promise<ClientCon
     const existingContent = await adapter.readConfig();
     const fields: ClientConfigFields = {
         connectionMode: params.connectionMode || "gateway",
-        protocol: params.protocol,
         gatewayUrl: params.gatewayUrl.trim(),
         apiKey: params.apiKey.trim(),
         model: params.model?.trim() || "",
@@ -333,7 +331,6 @@ async function updateBackupConfig(params: UpdateClientConfigBackupParams): Promi
 
     const fields: ClientConfigFields = {
         connectionMode: params.connectionMode || "gateway",
-        protocol: params.protocol,
         gatewayUrl: params.gatewayUrl.trim(),
         apiKey: params.apiKey.trim(),
         model: params.model?.trim() || "",
