@@ -4,7 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import clientConfigService from "../../src/service/clientConfigService/core";
 import ormService from "../../src/service/ormService";
-import SgClientConfigBackup from "../../src/model/sgClientConfigBackup";
+import SgClientConfig from "../../src/model/sgClientConfig";
 import { ClientName, ConnectionMode } from "../../src/constants";
 
 
@@ -26,7 +26,7 @@ describe("clientConfigService", () => {
     });
 
     beforeEach(async () => {
-        await SgClientConfigBackup.query().delete();
+        await SgClientConfig.query().delete();
         ormService.mode = "node";
         tempDir = await mkdtemp(join(tempRoot, "home-"));
         process.env.HOME = tempDir;

@@ -1,5 +1,5 @@
 import { ClientName, ConnectionMode, ApiFormat } from "../../constants";
-import type { ClientConfigContent, ClientConfigFields } from "../../model/sgClientConfigBackup";
+import type { ClientConfigContent, ClientConfigFields } from "../../model/sgClientConfig";
 
 interface CreateClientConfigParams extends ClientConfigFields {
     client: ClientName;

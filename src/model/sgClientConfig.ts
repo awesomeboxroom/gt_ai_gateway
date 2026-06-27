@@ -13,7 +13,7 @@ interface ClientConfigFields {
 type ClientConfigContent = ClientConfigFields | Record<string, string>;
 
 
-class SgClientConfigBackup extends Model {
+class SgClientConfig extends Model {
     table = "client_config_backup";
 
     id!: number;
@@ -36,5 +36,5 @@ class SgClientConfigBackup extends Model {
 }
 
 
-export default SgClientConfigBackup;
+export default SgClientConfig;
 export type { ClientConfigContent, ClientConfigFields, ConnectionMode, ApiFormat };

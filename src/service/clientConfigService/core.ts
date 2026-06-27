@@ -1,5 +1,5 @@
 import ormService from "../ormService";
-import SgClientConfigBackup from "../../model/sgClientConfigBackup";
+import SgClientConfig from "../../model/sgClientConfig";
 import { ClientName, ConnectionMode } from "../../constants";
 import type {
     ApplyClientConfigParams,
@@ -61,7 +61,7 @@ async function getAdapter(client: ClientName): Promise<ConfigAdapter> {
 
 
 async function formatUniqueBackupName(client: ClientName, baseName: string): Promise<string> {
-    const records = await SgClientConfigBackup.query()
+    const records = await SgClientConfig.query()
         .where("client", client)
         .get();
     const existingNames = new Set(normalizeBackupRecords(records).map(record => String(record.name)));
@@ -114,7 +114,7 @@ function extractFieldsFromBackup(backupContent: any, adapter: ConfigAdapter): Cl
     return adapter.parseConfigContent(backupContent);
 }
 
-async function toBackupInfo(record: SgClientConfigBackup, adapter: ConfigAdapter): Promise<ClientConfigBackupInfo> {
+async function toBackupInfo(record: SgClientConfig, adapter: ConfigAdapter): Promise<ClientConfigBackupInfo> {
     const rawContent = typeof record.configContent === "string" ? JSON.parse(record.configContent) : record.configContent || {};
     const parsedConfig = extractFieldsFromBackup(rawContent, adapter);
 
@@ -149,7 +149,7 @@ function normalizeBackupRecords(records: any): any[] {
 
 
 async function getBackups(client: ClientName, adapter: ConfigAdapter): Promise<ClientConfigBackupInfo[]> {
-    const records = await SgClientConfigBackup.query()
+    const records = await SgClientConfig.query()
         .where("client", client)
         .orderBy("id", "desc")
         .get();
@@ -159,7 +159,7 @@ async function getBackups(client: ClientName, adapter: ConfigAdapter): Promise<C
 
 
 async function enrichStatus(adapterStatus: AdapterConfigStatus, adapter: ConfigAdapter): Promise<ClientConfigStatus> {
-    const records = await SgClientConfigBackup.query()
+    const records = await SgClientConfig.query()
         .where("client", adapterStatus.client)
         .orderBy("id", "desc")
         .get();
@@ -245,7 +245,7 @@ async function createConfig(params: CreateClientConfigParams): Promise<ClientCon
         effortLevel: params.effortLevel?.trim(),
     };
     
-    await SgClientConfigBackup.query().create({
+    await SgClientConfig.query().create({
         client: params.client,
         name: await formatUniqueBackupName(params.client, "未命名配置"),
         configContent: fields,
@@ -266,7 +266,7 @@ async function createBackup(params: CreateClientConfigBackupParams): Promise<Cli
     const adapter = await getAdapter(params.client);
     const configContent = await adapter.readConfig();
     const fields = adapter.parseConfigContent(configContent) || { gatewayUrl: "", apiKey: "", model: "" };
-    const record = await SgClientConfigBackup.query().create({
+    const record = await SgClientConfig.query().create({
         client: params.client,
         name: params.name?.trim() || await formatUniqueBackupName(params.client, "未命名配置"),
         configContent: fields,
@@ -291,7 +291,7 @@ async function renameBackup(params: RenameClientConfigBackupParams): Promise<Cli
         throw new Error("Backup name is required");
     }
 
-    const backup = await SgClientConfigBackup.query()
+    const backup = await SgClientConfig.query()
         .where("id", params.backupId)
         .where("client", params.client)
         .first();
@@ -320,7 +320,7 @@ async function updateBackupConfig(params: UpdateClientConfigBackupParams): Promi
     }
 
     const adapter = await getAdapter(params.client);
-    const backup = await SgClientConfigBackup.query()
+    const backup = await SgClientConfig.query()
         .where("id", params.backupId)
         .where("client", params.client)
         .first();
@@ -360,7 +360,7 @@ async function deleteBackup(params: DeleteClientConfigBackupParams): Promise<Cli
     }
 
     const adapter = await getAdapter(params.client);
-    const backup = await SgClientConfigBackup.query()
+    const backup = await SgClientConfig.query()
         .where("id", params.backupId)
         .where("client", params.client)
         .first();
@@ -376,8 +376,8 @@ async function deleteBackup(params: DeleteClientConfigBackupParams): Promise<Cli
 }
 
 
-async function enableBackup(client: ClientName, backup: SgClientConfigBackup): Promise<void> {
-    await SgClientConfigBackup.query()
+async function enableBackup(client: ClientName, backup: SgClientConfig): Promise<void> {
+    await SgClientConfig.query()
         .where("client", client)
         .update({ enabled: false });
     await backup.update({ enabled: true });
@@ -391,7 +391,7 @@ async function applyConfig(params: ApplyClientConfigParams): Promise<ClientConfi
     }
 
     const adapter = await getAdapter(params.client);
-    const backup = await SgClientConfigBackup.query()
+    const backup = await SgClientConfig.query()
         .where("id", params.backupId)
         .where("client", params.client)
         .first();
