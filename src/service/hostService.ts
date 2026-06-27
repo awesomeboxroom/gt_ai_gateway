@@ -36,11 +36,25 @@ async function getHostKey(): Promise<string> {
 }
 
 
+function getLocalPort(): string {
+    return process.env.PORT || "8720";
+}
+
+
+function getLocalHost(): string {
+    return process.env.HOST || "127.0.0.1";
+}
+
+
 export default {
     getHostKey,
+    getLocalPort,
+    getLocalHost,
 };
 
 export {
     generateShortUuid,
     getHostKey,
+    getLocalPort,
+    getLocalHost,
 };

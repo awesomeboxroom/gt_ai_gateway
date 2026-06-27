@@ -7,6 +7,7 @@ import type {
     PathApi,
 } from "./types";
 import configAdapterUtils from "./configAdapterUtils";
+import hostService from "../hostService";
 
 
 abstract class BaseConfigAdapter implements ConfigAdapter {
@@ -33,6 +34,21 @@ abstract class BaseConfigAdapter implements ConfigAdapter {
         this.displayName = displayName;
         this.configPath = configPath;
         this.configPaths = configPaths || [configPath];
+    }
+
+
+    protected isGatewayUrl(url?: string): boolean {
+        if (!url) {
+            return false;
+        }
+        try {
+            const parsed = new URL(url);
+            const isLocalHost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+            const port = hostService.getLocalPort();
+            return isLocalHost && parsed.port === port;
+        } catch {
+            return false;
+        }
     }
 
 

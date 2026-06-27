@@ -5,6 +5,7 @@ import { SgVendor } from "../model/sgVendor";
 import { SgModel } from "../model/sgModel";
 import { SgRecord } from "../model/sgRecord";
 import packageJson from "../../package.json";
+import hostService from "../service/hostService";
 
 // 当前实例的启动时间（延迟初始化，避免 Workers 模块加载时日期异常）
 let INSTANCE_START_TIME: Date | null = null;
@@ -29,8 +30,8 @@ function getApiAddress(c: Context): string {
         return new URL(c.req.url).origin;
     }
 
-    const hostname = process.env.HOST || "127.0.0.1";
-    const port = process.env.PORT || "8720";
+    const hostname = hostService.getLocalHost();
+    const port = hostService.getLocalPort();
     return `http://${hostname}:${port}`;
 }
 

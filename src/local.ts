@@ -4,6 +4,8 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { readFileSync } from "fs";
 import ormService from "./service/ormService";
+import recordService from "./service/recordService";
+import hostService from "./service/hostService";
 import app, { Env } from "./routes";
 import initLogger, { Logger } from "./util/logger";
 
@@ -89,7 +91,7 @@ async function startServer() {
     });
 
     // 启动服务器
-    const port = parseInt(process.env.PORT || "8720", 10);
+    const port = parseInt(hostService.getLocalPort(), 10);
 
     // 构建环境变量
     const bindings: Env = {
@@ -145,7 +147,7 @@ async function startServer() {
     app.use("/assets/*", serveStatic({ root: distPath }));
     app.use("/data_viewer/*", serveStatic({ root: distPath }));
 
-    const hostname = process.env.HOST || "127.0.0.1";
+    const hostname = hostService.getLocalHost();
 
     const server = serve({
         fetch: (request) => app.fetch(request, bindings),
