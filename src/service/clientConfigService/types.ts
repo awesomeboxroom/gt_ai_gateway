@@ -96,7 +96,7 @@ interface PathApi {
     join(...paths: string[]): string;
 }
 
-type ClientConfigFileSystemContent = Record<string, string>;
+type ClientConfigFileContent = Record<string, string>;
 
 interface ConfigAdapter {
     readonly client: ClientName;
@@ -107,10 +107,10 @@ interface ConfigAdapter {
     readonly configPaths: string[];
 
     isInstalled(): Promise<boolean>;
-    readConfig(): Promise<ClientConfigFileSystemContent>;
-    writeConfig(content: ClientConfigFileSystemContent): Promise<void>;
-    parseConfigContent(configContent: ClientConfigFileSystemContent): ClientConfigContent | null;
-    patchConfigContent(content: ClientConfigFileSystemContent, fields: ClientConfigContent): ClientConfigFileSystemContent;
+    readConfig(): Promise<ClientConfigFileContent>;
+    writeConfig(content: ClientConfigFileContent): Promise<void>;
+    parseConfigContent(configContent: ClientConfigFileContent): ClientConfigContent | null;
+    patchConfigContent(content: ClientConfigFileContent, fields: ClientConfigContent): ClientConfigFileContent;
 }
 
 export type {
@@ -120,7 +120,7 @@ export type {
     ClientConfigContent,
     ClientConfigStatus,
     ClientConfigStatusResponse,
-    ClientConfigFileSystemContent,
+    ClientConfigFileContent,
     ApiFormat,
     ConfigAdapter,
     ConnectionMode,

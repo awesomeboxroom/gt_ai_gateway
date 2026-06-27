@@ -1,4 +1,4 @@
-import type { ClientConfigFileSystemContent, ClientConfigContent, FileSystemApi, PathApi } from "./types";
+import type { ClientConfigFileContent, ClientConfigContent, FileSystemApi, PathApi } from "./types";
 import BaseConfigAdapter from "./baseConfigAdapter";
 import configAdapterUtils from "./configAdapterUtils";
 import { ClientName, ConnectionMode, ApiFormat } from "../../constants";
@@ -25,7 +25,7 @@ class ClaudeCodeConfigAdapter extends BaseConfigAdapter {
         return `${url}${this.defaultGatewaySuffix}`;
     }
 
-    parseConfigContent(configContent: ClientConfigFileSystemContent): ClientConfigContent | null {
+    parseConfigContent(configContent: ClientConfigFileContent): ClientConfigContent | null {
         const content = configContent[this.configPaths[0]] || "";
         if (!content) {
             return null;
@@ -47,7 +47,7 @@ class ClaudeCodeConfigAdapter extends BaseConfigAdapter {
         };
     }
 
-    patchConfigContent(content: ClientConfigFileSystemContent, fields: ClientConfigContent): ClientConfigFileSystemContent {
+    patchConfigContent(content: ClientConfigFileContent, fields: ClientConfigContent): ClientConfigFileContent {
         const oldContent = content[this.configPaths[0]] || "";
         const config = configAdapterUtils.parseJsonConfig(oldContent);
         config.env = {
