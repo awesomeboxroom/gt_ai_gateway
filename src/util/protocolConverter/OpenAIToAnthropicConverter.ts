@@ -34,7 +34,7 @@ export class OpenAIToAnthropicConverter extends BaseConverter {
         const messages: AnthropicRequest["messages"] = [];
 
         for (const msg of clientReq.messages) {
-            if (msg.role === "system") {
+            if (msg.role === "system" || msg.role === "developer") {
                 systemPrompt = (systemPrompt ? systemPrompt + "\n\n" : "") + (msg.content || "");
                 continue;
             }

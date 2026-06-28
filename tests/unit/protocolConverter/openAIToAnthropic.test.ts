@@ -55,6 +55,23 @@ describe("OpenAIToAnthropicConverter - convertRequest", () => {
         expect(result.messages[0].role).toBe("user");
     });
 
+    it("should extract developer messages into Anthropic system field", () => {
+        const openaiReq: OpenAIRequest = {
+            model: "gpt-4",
+            messages: [
+                { role: "developer", content: "Developer instruction" },
+                { role: "user", content: "Hello" },
+            ],
+            max_tokens: 1024,
+        };
+
+        const result = converter.convertRequest(openaiReq);
+
+        expect(result.system).toBe("Developer instruction");
+        expect(result.messages).toHaveLength(1);
+        expect(result.messages[0].role).toBe("user");
+    });
+
     it("should convert OpenAI tools to Anthropic format", () => {
         const openaiReq: OpenAIRequest = {
             model: "gpt-4",

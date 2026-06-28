@@ -115,6 +115,30 @@ describe("ResponsesToAnthropicConverter - convertRequest", () => {
         expect(result.messages[0].role).toBe("user");
     });
 
+    it("should convert developer message in input to system prompt", () => {
+        const req: ResponsesRequest = {
+            model: "gpt-4.1",
+            input: [
+                {
+                    type: "message",
+                    role: "developer",
+                    content: [{ type: "input_text", text: "Developer instruction" }],
+                },
+                {
+                    type: "message",
+                    role: "user",
+                    content: [{ type: "input_text", text: "Hello" }],
+                },
+            ],
+        };
+
+        const result = converter.convertRequest(req);
+
+        expect(result.system).toBe("Developer instruction");
+        expect(result.messages).toHaveLength(1);
+        expect(result.messages[0].role).toBe("user");
+    });
+
     it("should convert function_call to assistant message with tool_use", () => {
         const req: ResponsesRequest = {
             model: "gpt-4.1",

@@ -171,8 +171,8 @@ export class ResponsesToAnthropicConverter extends BaseConverter {
             const role = item.role;
             const content = item.content;
 
-            if (role === "system") {
-                // system message → system prompt
+            if (role === "system" || role === "developer") {
+                // system/developer message → system prompt
                 const text = this.extractText(content);
                 if (setSystem) {
                     setSystem(text);
