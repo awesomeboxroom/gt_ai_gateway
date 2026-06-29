@@ -2,7 +2,7 @@
     <div class="client-manager">
         <div class="page-header">
             <h2 class="page-title">客户端管理</h2>
-            <p class="page-desc">管理和切换本地AI客户端所使用的模型配置</p>
+            <p class="page-desc">管理和切换本地AI客户端所使用的模型配置。可以给每个客户端建立多份配置，从而方便快捷地在不同的模型服务中切换。</p>
         </div>
 
         <a-spin :spinning="loading">
