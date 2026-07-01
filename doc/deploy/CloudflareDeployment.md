@@ -11,18 +11,24 @@
 ### 第一步：Fork 本项目
 请先点击页面右上角的 **Fork** 按钮，将本项目克隆到您自己的 GitHub 账号下。**这是后续能够享受一键自动升级的前提条件！**
 
-### 第二步：获取 Cloudflare 部署凭证
-您需要准备两个 Cloudflare 凭证，以便 GitHub Actions 能够替您自动部署：
-1. **Account ID**：
-   - 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)，在左侧菜单点击 `Workers & Pages` -> `Overview`。
-   - 在右侧边栏找到 `Account ID` 并复制。
-2. **API Token**：
-   - 在控制台右上角点击您的头像 -> `My Profile` -> `API Tokens`。
-   - 点击 `Create Token`，选择下方的 `Create Custom Token`。
-   - 配置权限如下：
-     - `Account` | `D1` | `Edit`
-     - `Account` | `Worker Scripts` | `Edit`
-   - 继续到下一步并生成 Token，**请妥善复制保存此 Token**（它只显示一次）。
+### 第二步：获取 Cloudflare 部署凭证 (环境变量)
+您需要准备两个 Cloudflare 凭证，以便 GitHub Actions 能够替您自动部署。获取方法非常简单：
+
+1. **获取 Account ID**：
+   - 登录 Cloudflare 后台，随便点击左侧菜单的 `Workers & Pages`。
+   - 此时观察浏览器上方的地址栏 URL，格式通常为：`https://dash.cloudflare.com/一串由字母和数字组成的32位长字符/workers-and-pages`。
+   - **这串 32 位的长字符**，就是您的 `Account ID`。复制下来备用。
+   - *(或者您可以在右侧边栏下拉寻找 `Account ID` 并点击复制)*。
+
+2. **获取 API Token**：
+   - 直接点击专属快捷链接前往 API 令牌管理页：[https://dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+   - 点击右侧的 `Create Token` (创建令牌) 按钮，拉到最下方选择 `Create Custom Token` (创建自定义令牌)。
+   - **Token 名称 (Token name)**：随便填，比如 `GitHub Actions Deploy`。
+   - **权限配置 (Permissions)**：点击 `Add more`，确保完整添加以下 **两项** 权限：
+     - `Account` (帐户) | `D1` | `Edit` (编辑)
+     - `Account` (帐户) | `Worker Scripts` (Worker 脚本) | `Edit` (编辑)
+   - 其它选项保持默认，拉到最下面点击 `Continue to summary`，然后点击 `Create Token`。
+   - ⚠️ **核心警告**：此时屏幕上会显示出这串 Token 密钥，**它只显示这一次！刷新就会永远消失！** 请务必立刻将它复制下来备用。
 
 ### 第三步：配置 GitHub Secrets
 回到您刚才 Fork 的 GitHub 仓库页面：
