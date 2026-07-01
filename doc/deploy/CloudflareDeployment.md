@@ -11,25 +11,41 @@
 ### 第一步：Fork 本项目
 请先点击页面右上角的 **Fork** 按钮，将本项目克隆到您自己的 GitHub 账号下。**这是后续能够享受一键自动升级的前提条件！**
 
+<img src="../../images/do_fork.png" width="50%" alt="Fork 本项目">
+
 ### 第二步：获取 Cloudflare 部署凭证 (环境变量)
 您需要准备两个 Cloudflare 凭证，以便 GitHub Actions 能够替您自动部署。获取方法非常简单：
 
 1. **获取 Account ID**：
-   - 登录 Cloudflare 后台，随便点击左侧菜单的 `Workers & Pages`。
+   - 登录 [Cloudflare 后台](https://dash.cloudflare.com/?to=/:account/workers-and-pages)，点击左侧菜单的 `Workers & Pages`。
    - 此时观察浏览器上方的地址栏 URL，格式通常为：`https://dash.cloudflare.com/一串由字母和数字组成的32位长字符/workers-and-pages`。
    - **这串 32 位的长字符**，就是您的 `Account ID`。复制下来备用。
-   - *(或者您可以在右侧边栏下拉寻找 `Account ID` 并点击复制)*。
+   - *(或者您可以在页面右侧边栏下拉寻找 `Account ID` 并点击复制)*。
+
+<img src="../../images/get_cloudflare_account_id.png" width="50%" alt="获取 Account ID">
 
 2. **获取 API Token**：
    - 直接点击专属快捷链接前往 API 令牌管理页：[https://dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
    - 点击右侧的 `Create Token` (创建令牌) 按钮，拉到最下方选择 `Create Custom Token` (创建自定义令牌)。
+   
+   第一步
+
+   <img src="../../images/create_token_step_1.png" width="50%" alt="创建自定义令牌">
+   
+   第二步
+
+   <img src="../../images/create_token_step_2.png" width="50%" alt="创建自定义令牌">
+
    - **Token 名称 (Token name)**：随便填，比如 `GitHub Actions Deploy`。
+   
    - **权限配置 (Permissions)**：点击 `Add more`，确保完整添加以下 **三项** 权限：
      - `Account` (帐户) | `D1` | `Edit` (编辑)
      - `Account` (帐户) | `Worker Scripts` (Worker 脚本) | `Edit` (编辑)
      - `Account` (帐户) | `Workers KV Storage` (Workers KV 存储) | `Edit` (编辑)
    - 其它选项保持默认，拉到最下面点击 `Continue to summary`，然后点击 `Create Token`。
    - ⚠️ **核心警告**：此时屏幕上会显示出这串 Token 密钥，**它只显示这一次！刷新就会永远消失！** 请务必立刻将它复制下来备用。
+
+   <img src="../../images/set_token_permissions.png" width="50%" alt="配置 Token 权限">
 
 ### 第三步：配置 GitHub Secrets
 回到您刚才 Fork 的 GitHub 仓库页面：
@@ -39,13 +55,17 @@
    - Name: `CLOUDFLARE_API_TOKEN`，Value 填入您刚才生成的 API Token。
    - Name: `ROOT_TOKEN`，请填入您自定义的后台管理员密码。
 
+<img src="../../images/set_github_action_secret.png" width="50%" alt="配置 GitHub Secrets">
+
 ### 第四步：触发自动部署
 1. 点击仓库顶部的 `Actions` 标签页。
 2. 在左侧列表中选择 `Deploy to Cloudflare` 工作流。
 3. 如果看到 "Workflows aren’t being run on this forked repository"，请点击绿色的 `I understand my workflows, go ahead and enable them` 按钮。
 4. 点击右侧的 `Run workflow` 按钮并确认执行。
 5. 脚本会自动完成 D1 数据库绑定和代码发布（约耗时 1~2 分钟）。
-6. **获取超级管理员密码**：点开执行成功的 Action 详情，展开 `Deploy` 步骤，在日志最末尾您会看到自动生成的 **ROOT_TOKEN 密码** 以及应用的 **访问链接**。
+6. **访问管理后台**：点开执行成功的 Action 详情，展开 `Deploy` 步骤，在日志最末尾您会看到应用的 **访问链接**。点击链接，并输入您在前面步骤中配置的 **ROOT_TOKEN** 即可登录系统。
+
+<img src="../../images/run_cloudflare_deploy.png" width="50%" alt="触发自动部署">
 
 ### 如何修改或自定义 ROOT_TOKEN？
 如果您想把自动生成的随机密码改成自己好记的密码，或者想更新密码，可以通过以下两种方式配置：
@@ -67,6 +87,8 @@
 1. 登录您的 GitHub，进入您 Fork 的仓库。
 2. 点击页面上方的 **Sync fork -> Update branch** 按钮。
 3. 同步完成后，由于您仓库的代码发生了变化（`push` 到 `master`），GitHub Actions 会**自动触发**部署流程，智能保留您的 D1 数据库并热更最新代码，实现无损升级！
+
+<img src="../../images/upgrade_code.png" width="50%" alt="一键同步更新">
 
 ---
 
