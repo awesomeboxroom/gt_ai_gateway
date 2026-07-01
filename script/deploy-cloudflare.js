@@ -260,24 +260,33 @@ function setupRootToken() {
 
     try {
         const secrets = runAndCapture("npx", ["wrangler", "secret", "list"]);
-        if (secrets.includes("ROOT_TOKEN")) {
+        
+        const providedToken = process.env.ROOT_TOKEN;
+        
+        // If it already exists in Cloudflare and the user didn't explicitly provide a custom one, skip generating a new one.
+        if (secrets.includes("ROOT_TOKEN") && !providedToken) {
             console.log("ROOT_TOKEN already exists.");
             return;
         }
 
-        const newToken = crypto.randomUUID();
-        console.log("Generating new ROOT_TOKEN...");
+        const tokenToSet = providedToken || crypto.randomUUID();
+        console.log(providedToken ? "Using provided ROOT_TOKEN from environment..." : "Generating new random ROOT_TOKEN...");
+        
         run("npx", ["wrangler", "secret", "put", "ROOT_TOKEN"], {
-            input: `${newToken}\n`,
+            input: `${tokenToSet}\n`,
             stdio: ["pipe", "inherit", "inherit"],
         });
 
-        console.log("\n==========================================");
-        console.log("    🔑 NEW ROOT_TOKEN GENERATED 🔑");
-        console.log("==========================================");
-        console.log(`🚀 Your new ROOT_TOKEN is: ${newToken}`);
-        console.log("⚠️  Please save this securely. You will need it to log in.");
-        console.log("==========================================\n");
+        if (!providedToken) {
+            console.log("\n==========================================");
+            console.log("    🔑 NEW ROOT_TOKEN GENERATED 🔑");
+            console.log("==========================================");
+            console.log(`🚀 Your new ROOT_TOKEN is: ${tokenToSet}`);
+            console.log("⚠️  Please save this securely. You will need it to log in.");
+            console.log("==========================================\n");
+        } else {
+            console.log("✅ Custom ROOT_TOKEN has been set successfully.");
+        }
     } catch (err) {
         console.error("Error checking/setting secrets. Continuing deployment...", err.message);
     }

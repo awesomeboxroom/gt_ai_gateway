@@ -37,6 +37,7 @@
 2. 点击 `New repository secret`，添加以下两个 Secret：
    - Name: `CLOUDFLARE_ACCOUNT_ID`，Value 填入您刚才复制的 Account ID。
    - Name: `CLOUDFLARE_API_TOKEN`，Value 填入您刚才生成的 API Token。
+   - *(可选)* Name: `ROOT_TOKEN`，您可以填入自定义的后台管理员密码。如果不填，部署成功后系统会自动为您随机生成一个并显示在运行日志中。
 
 ### 第四步：触发自动部署
 1. 点击仓库顶部的 `Actions` 标签页。
