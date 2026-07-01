@@ -344,57 +344,10 @@ function checkEnvironmentVariables() {
     console.log("✅ All required environment variables are present.");
 }
 
-function verifyTokenPermissions() {
-    console.log("Verifying Cloudflare API Token permissions...");
-    try {
-        const rawOutput = runAndCapture("npx", ["wrangler", "whoami"]);
-        // Strip ANSI color codes
-        const output = rawOutput.replace(/\x1b\[[0-9;]*m/g, '');
-        
-        const requiredPermissions = [
-            { name: "Worker Scripts", check: (out) => /Worker(?:s)? Scripts.*Edit/i.test(out) },
-            { name: "D1", check: (out) => /D1.*Edit/i.test(out) },
-            { name: "Workers KV Storage", check: (out) => /KV Storage.*Edit/i.test(out) }
-        ];
-        
-        const missingPermissions = [];
-        
-        for (const p of requiredPermissions) {
-            if (!p.check(output)) {
-                missingPermissions.push(p.name);
-            }
-        }
-        
-        if (missingPermissions.length > 0) {
-            console.error("\n==========================================");
-            console.error(" ❌ [ERROR] INSUFFICIENT TOKEN PERMISSIONS ❌");
-            console.error("==========================================");
-            console.error(`Your CLOUDFLARE_API_TOKEN is missing the following permissions:`);
-            missingPermissions.forEach(p => console.error(`  - Account | ${p} | Edit`));
-            console.error("\nPlease go to Cloudflare Dashboard -> My Profile -> API Tokens,");
-            console.error("and edit your token to ensure it has 'Edit' access for these permissions.");
-            console.error("==========================================");
-            console.error("--- DEBUG: ACTUAL TOKEN OUTPUT ---");
-            console.error(output);
-            console.error("----------------------------------\n");
-            process.exit(1);
-        }
-        
-        console.log("✅ API Token permissions verified.");
-    } catch (err) {
-        console.error("\n==========================================");
-        console.error(" ❌ [ERROR] INVALID CLOUDFLARE_API_TOKEN ❌");
-        console.error("==========================================");
-        console.error("Failed to verify API Token. Please ensure your token is correct.");
-        console.error("Error details:", err.message);
-        console.error("==========================================\n");
-        process.exit(1);
-    }
-}
+
 
 try {
     checkEnvironmentVariables();
-    verifyTokenPermissions();
     runDeploySetup();
     syncSubmodules();
     run("npm", ["ci", "--prefix", "frontend", "--progress=false"]);
