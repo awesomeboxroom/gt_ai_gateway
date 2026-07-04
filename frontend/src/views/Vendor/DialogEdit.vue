@@ -31,13 +31,13 @@
                     placeholder="请输入 API Token"
                 />
             </a-form-item>
-            <a-form-item v-if="isAnthropicType" label="认证方式" name="auth_mode">
-                <a-radio-group v-model:value="formState.auth_mode">
-                    <a-radio value="api_key">API Key <span class="auth-hint">(x-api-key)</span></a-radio>
-                    <a-radio value="bearer_token">Bearer Token <span class="auth-hint">(Authorization)</span></a-radio>
-                </a-radio-group>
-            </a-form-item>
-            <a-form-item label="URLs 配置">
+            <div class="urls-header">
+                <label class="ant-form-item-label">URLs 配置</label>
+                <a-button v-if="urlsMode === 'view'" type="link" size="small" class="toggle-btn" @click="urlsMode = 'edit'">
+                    <EditOutlined /> 编辑
+                </a-button>
+            </div>
+            <a-form-item>
                 <!-- 查看模式：合并展示 preset + 用户自定义 -->
                 <template v-if="urlsMode === 'view'">
                     <div class="urls-view">
@@ -47,9 +47,6 @@
                             <a-tag v-if="item.isCustom" color="blue" class="custom-tag">自定义</a-tag>
                         </div>
                     </div>
-                    <a-button type="link" size="small" class="toggle-btn" @click="urlsMode = 'edit'">
-                        <EditOutlined /> 编辑
-                    </a-button>
                 </template>
                 <!-- 编辑模式：仅用户自定义条目 -->
                 <template v-else>
@@ -90,6 +87,17 @@
                     </a-button>
                 </template>
             </a-form-item>
+            <!-- 高级设置 -->
+            <a-collapse v-model:activeKey="advancedActiveKey" :bordered="false" class="advanced-collapse">
+                <a-collapse-panel key="advanced" header="高级设置">
+                    <a-form-item label="认证方式" name="auth_mode">
+                        <a-radio-group v-model:value="formState.auth_mode">
+                            <a-radio value="api_key">API Key <span class="auth-hint">(x-api-key)</span></a-radio>
+                            <a-radio value="bearer_token">Bearer Token <span class="auth-hint">(Authorization)</span></a-radio>
+                        </a-radio-group>
+                    </a-form-item>
+                </a-collapse-panel>
+            </a-collapse>
         </a-form>
     </a-modal>
 </template>
@@ -110,6 +118,7 @@ const emit = defineEmits<{
 const visible = ref(false);
 const loading = ref(false);
 const formRef = ref<FormInstance>();
+const advancedActiveKey = ref<string[]>([]);
 
 const URL_TYPES = [
     { label: 'OpenAI', value: 'openai' },
@@ -152,15 +161,9 @@ const mergedUrls = computed(() => {
         }));
 });
 
-const isAnthropicType = computed(() => formState.type === 'anthropic');
-
 // 切换类型时只更新模式，保留用户已填写的自定义 URLs
 watch(() => formState.type, (newType) => {
     urlsMode.value = PRESET_URLS.value[newType] ? 'view' : 'edit';
-    // 非 anthropic 类型重置为默认 api_key
-    if (newType !== 'anthropic') {
-        formState.auth_mode = 'api_key';
-    }
 });
 
 const rules = {
@@ -184,6 +187,7 @@ function open(vendor: Vendor) {
 
     void loadPresets();
     urlsMode.value = PRESET_URLS.value[vendor.type] ? 'view' : 'edit';
+    advancedActiveKey.value = [];
     visible.value = true;
 }
 
@@ -213,11 +217,8 @@ async function handleOk() {
             name: formState.name,
             token: formState.token,
             urls,
+            auth_mode: formState.auth_mode,
         };
-
-        if (isAnthropicType.value) {
-            updateData.auth_mode = formState.auth_mode;
-        }
 
         loading.value = true;
         const vendor = await updateVendor(currentId.value, updateData);
@@ -282,8 +283,43 @@ defineExpose({ open });
     height: auto;
 }
 
+.urls-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.urls-header .ant-form-item-label {
+    margin-bottom: 0;
+}
+
+.urls-header .toggle-btn {
+    margin-top: 0;
+}
+
 .auth-hint {
     color: #8c8c8c;
     font-size: 12px;
+}
+
+.advanced-collapse {
+    background: transparent;
+    border: none;
+    margin-top: 8px;
+}
+
+:deep(.advanced-collapse .ant-collapse-item) {
+    border: 1px solid var(--border-color, #d9d9d9);
+    border-radius: 6px;
+}
+
+:deep(.advanced-collapse .ant-collapse-header) {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+:deep(.advanced-collapse .ant-collapse-content-box) {
+    padding: 0 16px 12px;
 }
 </style>
