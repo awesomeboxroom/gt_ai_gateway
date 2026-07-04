@@ -243,6 +243,8 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
         handleResponsesError(req, res);
     } else if (url.includes("/responses")) {
         handleOpenAIResponses(req, res);
+    } else if (url.includes("/messages/stream-error")) {
+        handleAnthropicStreamError(req, res);
     } else if (url.includes("/messages/incomplete")) {
         handleAnthropicStreamIncomplete(req, res);
     } else if (url.includes("/messages/slow")) {
@@ -1195,6 +1197,38 @@ function handleAnthropicStreamIncomplete(req: IncomingMessage, res: ServerRespon
             // Close without message_stop
             res.end();
         }, 50);
+    });
+}
+
+
+/**
+ * Anthropic stream that returns an SSE error event followed by [DONE].
+ * This simulates an upstream business error, not a broken stream.
+ */
+function handleAnthropicStreamError(req: IncomingMessage, res: ServerResponse): void {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", () => {
+        const data = body ? JSON.parse(body) : {};
+        captureRequest(req, body, data);
+
+        res.writeHead(200, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+        });
+
+        const errorEvent = {
+            type: "error",
+            error: {
+                type: "rate_limit_error",
+                code: "1302",
+                message: "[1302][您的账户已达到速率限制，请您控制请求频率]",
+            },
+        };
+        res.write(`event: error\ndata: ${JSON.stringify(errorEvent)}\n\n`);
+        res.write("data: [DONE]\n\n");
+        res.end();
     });
 }
 

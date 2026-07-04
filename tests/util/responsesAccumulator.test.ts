@@ -47,6 +47,7 @@ describe("ResponsesAccumulator", () => {
             const response = acc.getResponse();
 
             expect(response.status).toBe("completed");
+            expect(acc.isCompleted()).toBe(true);
         });
 
         it("parses output text content", () => {
@@ -69,6 +70,7 @@ describe("ResponsesAccumulator", () => {
             expect(response.usage?.total_tokens).toBe(18);
             expect(response.usage?.input_tokens_details?.cached_tokens).toBe(0);
             expect(response.usage?.output_tokens_details?.reasoning_tokens).toBe(0);
+            expect(acc.getUsage()).toEqual(response.usage);
         });
 
         it("getText() returns plain text of first output item", () => {
@@ -104,17 +106,88 @@ describe("ResponsesAccumulator", () => {
         });
     });
 
+    describe("stream state", () => {
+        it("marks stream completed on response.completed", () => {
+            const acc = new responsesAccumulator.ResponsesAccumulator();
+
+            acc.addEvent({
+                type: "response.completed",
+                response: {
+                    id: "r1",
+                    object: "response",
+                    status: "completed",
+                    output: [],
+                    usage: {
+                        input_tokens: 2,
+                        output_tokens: 3,
+                        total_tokens: 5,
+                    },
+                },
+            });
+
+            expect(acc.isCompleted()).toBe(true);
+            expect(acc.isErrored()).toBe(false);
+            expect(acc.getUsage()).toEqual({
+                input_tokens: 2,
+                output_tokens: 3,
+                total_tokens: 5,
+            });
+        });
+
+        it("marks event:error payload as errored", () => {
+            const acc = new responsesAccumulator.ResponsesAccumulator();
+            const errorPayload = {
+                type: "error",
+                error: {
+                    type: "rate_limit_error",
+                    code: "1302",
+                    message: "rate limited",
+                },
+            };
+
+            acc.addEvent(errorPayload, "error");
+
+            expect(acc.isCompleted()).toBe(false);
+            expect(acc.isErrored()).toBe(true);
+            expect(acc.getError()).toEqual(errorPayload);
+        });
+
+        it("marks response.failed as errored", () => {
+            const acc = new responsesAccumulator.ResponsesAccumulator();
+            const failedPayload = {
+                type: "response.failed",
+                response: {
+                    id: "r1",
+                    status: "failed",
+                    error: {
+                        code: "server_error",
+                        message: "upstream failed",
+                    },
+                },
+            };
+
+            acc.addEvent(failedPayload);
+
+            expect(acc.isErrored()).toBe(true);
+            expect(acc.getError()).toEqual(failedPayload);
+        });
+    });
+
     describe("reset()", () => {
         it("clears all accumulated state", () => {
             const acc = new responsesAccumulator.ResponsesAccumulator();
 
             acc.addEvent({ type: "response.created", response: { id: "r1", model: "gpt-4o" } });
+            acc.addEvent({ type: "error", error: { message: "failed" } }, "error");
             acc.reset();
 
             const response = acc.getResponse();
             expect(response.id).toBeUndefined();
             expect(response.model).toBeUndefined();
             expect(response.output).toHaveLength(0);
+            expect(acc.isCompleted()).toBe(false);
+            expect(acc.isErrored()).toBe(false);
+            expect(acc.getError()).toBeNull();
         });
     });
 });

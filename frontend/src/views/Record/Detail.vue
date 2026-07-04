@@ -321,6 +321,7 @@ const FAILED_CODE_LABELS: Record<string, string> = {
     client_disconnected: '客户端断开连接',
     upstream_disconnected: '上游断开连接',
     stream_incomplete: '流式响应不完整',
+    upstream_error: '上游返回错误',
 };
 
 

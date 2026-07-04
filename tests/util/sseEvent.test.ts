@@ -66,4 +66,20 @@ describe("sseEvent", () => {
             data: "{\"type\":\"response.completed\"}",
         })).toBe(true);
     });
+
+    it("should detect client stream errors", () => {
+        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
+            event: "error",
+            data: "{\"type\":\"error\",\"error\":{\"message\":\"rate limited\"}}",
+        })).toBe(true);
+        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
+            data: "{\"type\":\"error\",\"error\":{\"message\":\"rate limited\"}}",
+        })).toBe(true);
+        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
+            data: "{\"type\":\"response.failed\",\"response\":{\"status\":\"failed\"}}",
+        })).toBe(true);
+        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
+            data: "{\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}",
+        })).toBe(false);
+    });
 });

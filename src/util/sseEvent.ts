@@ -42,7 +42,7 @@ function isClientStreamError(format: ApiFormat, event: ProtocolStreamEvent): boo
     if (event.event === "error") return true;
     try {
         const parsed = JSON.parse(event.data);
-        if (parsed?.type === "error" || parsed?.error) {
+        if (parsed?.type === "error" || parsed?.type === "response.failed" || parsed?.error) {
             return true;
         }
     } catch {}

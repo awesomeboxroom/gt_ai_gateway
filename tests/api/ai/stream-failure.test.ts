@@ -12,6 +12,7 @@ import config from "../../config";
  * Verifies that failed_code is correctly set when a streaming request ends abnormally:
  * - stream_incomplete: upstream closed without [DONE] / message_stop / response.completed
  * - upstream_disconnected: upstream destroyed the TCP socket mid-stream
+ * - upstream_error: upstream returned a protocol-level SSE error event
  */
 
 const MOCK_BASE = config.UPSTREAM_CONFIG.mock.url; // e.g. http://localhost:9999
@@ -24,6 +25,7 @@ let openaiIncompleteModelName: string;
 let openaiDisconnectModelName: string;
 let anthropicIncompleteModelName: string;
 let responsesIncompleteModelName: string;
+let responsesClientAnthropicStreamErrorModelName: string;
 
 // Slow vendors/models for client_disconnected tests
 let openaiSlowModelName: string;
@@ -112,6 +114,28 @@ describe("Stream Failure Handling", () => {
         await requestHelper.post(
             "/model/create.json",
             { name: responsesIncompleteModelName, vendor_id: responsesIncompleteVendor.body.id, enable: true },
+            adminToken,
+        );
+
+        // --- Responses client -> Anthropic upstream SSE error vendor/model ---
+        const responsesClientAnthropicErrorVendor = await requestHelper.post(
+            "/vendor/create.json",
+            {
+                type: "other",
+                name: "Mock Anthropic Stream Error For Responses Client",
+                token: "test-token",
+                urls: { anthropic: `${MOCK_BASE}/messages/stream-error` },
+            },
+            adminToken,
+        );
+        responsesClientAnthropicStreamErrorModelName = `responses-client-anthropic-stream-error-${Date.now()}`;
+        await requestHelper.post(
+            "/model/create.json",
+            {
+                name: responsesClientAnthropicStreamErrorModelName,
+                vendor_id: responsesClientAnthropicErrorVendor.body.id,
+                enable: true,
+            },
             adminToken,
         );
 
@@ -269,6 +293,37 @@ describe("Stream Failure Handling", () => {
 
             expect(record.status).toBe("failed");
             expect(record.failed_code).toBe("stream_incomplete");
+        }, 15000);
+
+        it("should set failed_code=upstream_error when converted Anthropic stream returns an SSE error event", async () => {
+            const response = await requestHelper.post(
+                "/llm/v1/responses",
+                {
+                    model: responsesClientAnthropicStreamErrorModelName,
+                    input: "hi",
+                    stream: true,
+                },
+                testUserToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(typeof response.body).toBe("string");
+            expect(response.body).toContain("event: error");
+            expect(response.body).toContain("rate_limit_error");
+
+            const recordRes = await requestHelper.get("/record/latest.json?limit=1", adminToken);
+            const record = recordRes.body[0];
+
+            expect(record.status).toBe("failed");
+            expect(record.failed_code).toBe("upstream_error");
+            expect(record.response_data).toBeTruthy();
+            expect(JSON.parse(record.response_data)).toMatchObject({
+                type: "error",
+                error: {
+                    type: "rate_limit_error",
+                    code: "1302",
+                },
+            });
         }, 15000);
     });
 

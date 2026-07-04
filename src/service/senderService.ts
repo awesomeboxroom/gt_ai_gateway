@@ -9,6 +9,7 @@ import recordService from "./recordService";
 import ormService from "./ormService";
 import { SgRecordStatus, FailedCode, ApiFormat } from "../constants";
 import sseAccumulator from "../util/sseAccumulator";
+import responsesAccumulator from "../util/responsesAccumulator";
 import { SgRecord, SgRecordUsage } from "../model/sgRecord";
 import { createWriteStream, WriteStream } from "fs";
 import fs from "fs/promises";
@@ -484,14 +485,15 @@ async function handleResponsesStreamResponse(
     const needsConversion = converter !== null;
 
     return streamSSE(c, async (stream: SSEStreamingApi) => {
+        const accumulator = new responsesAccumulator.ResponsesAccumulator();
         const reader = upstreamRes.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-        let streamCompleted = false;
         let failedCode: string | null = null;
+        let streamErrorData: unknown | null = null;
 
         const abortHandler = () => {
-            if (!failedCode) failedCode = FailedCode.CLIENT_DISCONNECTED;
+            failedCode = FailedCode.CLIENT_DISCONNECTED;
             reader.cancel().catch(() => {});
         };
         c.req.raw.signal.addEventListener("abort", abortHandler);
@@ -506,7 +508,9 @@ async function handleResponsesStreamResponse(
                     value = result.value;
                 } catch (e: any) {
                     console.error("[senderService] Upstream read error (responses):", e);
-                    if (!failedCode) failedCode = FailedCode.UPSTREAM_DISCONNECTED;
+                    if (failedCode !== FailedCode.CLIENT_DISCONNECTED) {
+                        failedCode = FailedCode.UPSTREAM_DISCONNECTED;
+                    }
                     break;
                 }
                 if (done) break;
@@ -526,17 +530,6 @@ async function handleResponsesStreamResponse(
                     const parsedEvent = sseEvent.parseEvent(event);
                     if (!parsedEvent) continue;
 
-                    // Responses API embeds event type in the JSON `type` field (no SSE `event:` line)
-                    let parsedData: any = null;
-                    try {
-                        parsedData = JSON.parse(parsedEvent.data);
-                    } catch (e) {
-                        // ignore unparseable lines
-                    }
-
-                    const eventType = parsedEvent.event ?? "";
-                    const responseEventType = parsedData?.type ?? eventType;
-
                     // 如果需要协议转换，将上游事件转换为 Responses 事件
                     let clientEvents: ProtocolStreamEvent[];
                     if (needsConversion && converter) {
@@ -554,13 +547,24 @@ async function handleResponsesStreamResponse(
                         } catch {}
                         const clientEventType = clientParsedData?.type ?? "";
 
+                        if (clientParsedData) {
+                            accumulator.addEvent(clientParsedData, clientEvent.event);
+                        }
+
                         if (firstTokenTime === null && isResponsesOutputStartedEvent(clientEventType)) {
                             firstTokenTime = Date.now();
                         }
 
-                        // response.completed 表示上游已完成，在转发前标记
-                        if (clientEventType === "response.completed" && clientParsedData) {
-                            streamCompleted = true;
+                        if (sseEvent.isClientStreamError(ApiFormat.RESPONSES, clientEvent) || accumulator.isErrored()) {
+                            if (
+                                failedCode !== FailedCode.CLIENT_DISCONNECTED
+                                && failedCode !== FailedCode.UPSTREAM_DISCONNECTED
+                            ) {
+                                failedCode = FailedCode.UPSTREAM_ERROR;
+                            }
+                            streamErrorData = accumulator.getError()
+                                ?? clientParsedData
+                                ?? { event: clientEvent.event, data: clientEvent.data };
                         }
 
                         try {
@@ -575,35 +579,6 @@ async function handleResponsesStreamResponse(
                             clientDisconnected = true;
                             break;
                         }
-
-                        // response.completed 包含完整 usage，保存记录
-                        if (clientEventType === "response.completed" && clientParsedData) {
-                            try {
-                                const usage = clientParsedData?.response?.usage;
-                                const normalizedUsage = normalizeUsage(ApiFormat.RESPONSES, usage);
-                                const cost = normalizedUsage
-                                    ? calculateCost(model, normalizedUsage.promptTokens, normalizedUsage.outputTokens, normalizedUsage.cacheReadTokens)
-                                    : 0;
-                                const usageJson = normalizedUsage ? JSON.stringify(normalizedUsage.recordUsage) : null;
-
-                                await recordService.update(record.id, {
-                                    response_data: JSON.stringify(clientParsedData.response),
-                                    status: SgRecordStatus.SUCCESS,
-                                    usage: usageJson,
-                                    first_token_latency: firstTokenTime !== null
-                                        ? firstTokenTime - record.created_at.getTime()
-                                        : null,
-                                    end_at: new Date(),
-                                    cost,
-                                });
-
-                                if (user.type !== "root") {
-                                    await userService.deductBalance(user.id, cost);
-                                }
-                            } catch (e) {
-                                console.log("Failed to update record on response.completed:", e);
-                            }
-                        }
                     }
                 }
 
@@ -611,22 +586,69 @@ async function handleResponsesStreamResponse(
             }
         } catch (e: any) {
             console.error("[senderService] Unexpected stream error (responses):", e);
-            if (!failedCode) {
+            if (failedCode !== FailedCode.CLIENT_DISCONNECTED) {
                 failedCode = FailedCode.UPSTREAM_DISCONNECTED;
             }
         }
 
         c.req.raw.signal.removeEventListener("abort", abortHandler);
 
-        if (!streamCompleted) {
-            runInBackground(c, async () => {
+        runInBackground(c, async () => {
+            if (
+                failedCode === FailedCode.CLIENT_DISCONNECTED
+                || failedCode === FailedCode.UPSTREAM_DISCONNECTED
+            ) {
                 await recordService.update(record.id, {
                     status: SgRecordStatus.FAILED,
-                    failed_code: failedCode ?? FailedCode.STREAM_INCOMPLETE,
+                    failed_code: failedCode,
                     end_at: new Date(),
                 });
+                return;
+            }
+
+            if (failedCode === FailedCode.UPSTREAM_ERROR || accumulator.isErrored()) {
+                const errorData = accumulator.getError() ?? streamErrorData;
+                await recordService.update(record.id, {
+                    status: SgRecordStatus.FAILED,
+                    failed_code: FailedCode.UPSTREAM_ERROR,
+                    response_data: errorData !== null ? JSON.stringify(errorData) : null,
+                    end_at: new Date(),
+                });
+                return;
+            }
+
+            if (accumulator.isCompleted()) {
+                const fullResponse = accumulator.getResponse();
+                const usage = accumulator.getUsage() as Dict | null;
+                const normalizedUsage = normalizeUsage(ApiFormat.RESPONSES, usage);
+                const cost = normalizedUsage
+                    ? calculateCost(model, normalizedUsage.promptTokens, normalizedUsage.outputTokens, normalizedUsage.cacheReadTokens)
+                    : 0;
+                const usageJson = normalizedUsage ? JSON.stringify(normalizedUsage.recordUsage) : null;
+
+                await recordService.update(record.id, {
+                    response_data: JSON.stringify(fullResponse),
+                    status: SgRecordStatus.SUCCESS,
+                    usage: usageJson,
+                    first_token_latency: firstTokenTime !== null
+                        ? firstTokenTime - record.created_at.getTime()
+                        : null,
+                    end_at: new Date(),
+                    cost,
+                });
+
+                if (user.type !== "root") {
+                    await userService.deductBalance(user.id, cost);
+                }
+                return;
+            }
+
+            await recordService.update(record.id, {
+                status: SgRecordStatus.FAILED,
+                failed_code: FailedCode.STREAM_INCOMPLETE,
+                end_at: new Date(),
             });
-        }
+        });
 
         logStream?.end();
     });

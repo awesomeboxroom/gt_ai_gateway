@@ -53,14 +53,23 @@ class ResponsesAccumulator {
     private response: ResponsesAccumulatedResponse = {
         output: [],
     };
+    private completed = false;
+    private errored = false;
+    private error: unknown | null = null;
 
 
     /**
      * 添加一条 Responses API SSE 事件（data JSON 已解析）
      * @param event - 已解析的事件对象，type 字段为事件类型
      */
-    addEvent(event: Record<string, any>): void {
+    addEvent(event: Record<string, any>, eventName?: string): void {
         const type: string = event.type ?? "";
+
+        if (this.isErrorEvent(event, eventName)) {
+            this.errored = true;
+            this.error = event;
+            return;
+        }
 
         if (type === "response.created" || type === "response.in_progress") {
             this.handleResponseCreated(event.response);
@@ -93,9 +102,18 @@ class ResponsesAccumulator {
         }
 
         if (type === "response.completed") {
+            this.completed = true;
             this.handleResponseCompleted(event.response);
             return;
         }
+    }
+
+
+    private isErrorEvent(event: Record<string, any>, eventName?: string): boolean {
+        return eventName === "error"
+            || event.type === "error"
+            || event.type === "response.failed"
+            || event.error !== undefined;
     }
 
 
@@ -216,6 +234,38 @@ class ResponsesAccumulator {
 
 
     /**
+     * 是否收到 Responses 完成事件
+     */
+    isCompleted(): boolean {
+        return this.completed;
+    }
+
+
+    /**
+     * 是否收到 Responses 错误事件
+     */
+    isErrored(): boolean {
+        return this.errored;
+    }
+
+
+    /**
+     * 获取流式错误 payload
+     */
+    getError(): unknown | null {
+        return this.error;
+    }
+
+
+    /**
+     * 获取最终 usage
+     */
+    getUsage(): ResponsesUsage | null {
+        return this.response.usage ?? null;
+    }
+
+
+    /**
      * 获取第一个 output item 的纯文本内容
      */
     getText(): string {
@@ -233,6 +283,9 @@ class ResponsesAccumulator {
      */
     reset(): void {
         this.response = { output: [] };
+        this.completed = false;
+        this.errored = false;
+        this.error = null;
     }
 }
 
