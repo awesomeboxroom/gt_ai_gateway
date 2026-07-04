@@ -125,7 +125,7 @@ docker run -d \
 
 ---
 
-*本软件由人类进行架构设计，[TogoSpace AI Team](https://github.com/alexazhou/TogoSpace) 主力开发，通过 500+ 测试用例对功能进行全面覆盖，确保高质量的代码实现。*
+*本软件由人类进行架构设计，[TogoSpace AI Team](https://github.com/alexazhou/TogoSpace) 主力开发，通过 700+ 测试用例对功能进行全面覆盖，确保高质量的代码实现。*
 
 *点击 [TogoSpace](https://github.com/alexazhou/TogoSpace)，即刻拥有你专属的 AI 团队。*
 
@@ -146,6 +146,6 @@ docker run -d \
 
 <img src="./images/wechat_group.jpg" alt="微信交流群" width="50%" />
 
-## 许可证
+## 许可证（含署名要求）
 
-[MIT License](LICENSE)
+[MIT License](LICENSE)（附带署名条款：衍生项目须在页面底部保留署名及本仓库链接，否则需获授权）
