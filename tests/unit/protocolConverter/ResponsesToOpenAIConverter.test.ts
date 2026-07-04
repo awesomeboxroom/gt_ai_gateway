@@ -166,6 +166,65 @@ describe("ResponsesToOpenAIConverter", () => {
             });
         });
 
+        it("should merge consecutive function_calls into one assistant message", () => {
+            const req: ResponsesRequest = {
+                model: "gpt-4",
+                input: [
+                    {
+                        type: "function_call",
+                        call_id: "call_00",
+                        name: "exec_command",
+                        arguments: '{"cmd":"ls"}',
+                    },
+                    {
+                        type: "function_call",
+                        call_id: "call_01",
+                        name: "exec_command",
+                        arguments: '{"cmd":"pwd"}',
+                    },
+                    {
+                        type: "function_call_output",
+                        call_id: "call_00",
+                        output: "file1.txt\nfile2.txt",
+                    },
+                    {
+                        type: "function_call_output",
+                        call_id: "call_01",
+                        output: "/home/user",
+                    },
+                ],
+            };
+            const result = converter.convertRequest(req);
+            // 应该是 3 个消息：assistant(合并的tool_calls), tool(call_00), tool(call_01)
+            expect(result.messages).toHaveLength(3);
+            expect(result.messages[0]).toEqual({
+                role: "assistant",
+                content: null,
+                tool_calls: [
+                    {
+                        id: "call_00",
+                        type: "function",
+                        function: { name: "exec_command", arguments: '{"cmd":"ls"}' },
+                    },
+                    {
+                        id: "call_01",
+                        type: "function",
+                        function: { name: "exec_command", arguments: '{"cmd":"pwd"}' },
+                    },
+                ],
+            });
+            expect(result.messages[1]).toEqual({
+                role: "tool",
+                tool_call_id: "call_00",
+                content: "file1.txt\nfile2.txt",
+            });
+            expect(result.messages[2]).toEqual({
+                role: "tool",
+                tool_call_id: "call_01",
+                content: "/home/user",
+            });
+        });
+
         it("should skip reasoning items", () => {
             const req: ResponsesRequest = {
                 model: "gpt-4",
@@ -702,6 +761,132 @@ describe("ResponsesToOpenAIConverter", () => {
             expect(completedData.response.output[0].content[0].text).toBe("The answer is 42.");
             expect(completedData.response.output[1].type).toBe("reasoning");
             expect(completedData.response.output[1].summary[0].text).toBe("Let me think...");
+        });
+
+        it("should generate response.completed on [DONE] when no usage frame received", () => {
+            const streamConverter = new ResponsesToOpenAIConverter("gpt-4");
+            const events: any[] = [];
+
+            // 首帧
+            const chunk1: OpenAIChunk = {
+                id: "chatcmpl-123",
+                object: "chat.completion.chunk",
+                created: 1234567890,
+                model: "gpt-4",
+                choices: [{
+                    index: 0,
+                    delta: { role: "assistant", content: "Hi" },
+                    finish_reason: null,
+                }],
+            };
+            events.push(...streamConverter.convertStreamEvent(JSON.stringify(chunk1)));
+
+            // 结束帧（无 usage）
+            const chunk2: OpenAIChunk = {
+                id: "chatcmpl-123",
+                object: "chat.completion.chunk",
+                created: 1234567890,
+                model: "gpt-4",
+                choices: [{
+                    index: 0,
+                    delta: {},
+                    finish_reason: "stop",
+                }],
+            };
+            events.push(...streamConverter.convertStreamEvent(JSON.stringify(chunk2)));
+
+            // 此时不应该有 response.completed
+            let eventTypes = events.map((e) => JSON.parse(e.data).type);
+            expect(eventTypes).not.toContain("response.completed");
+
+            // [DONE] 事件
+            events.push(...streamConverter.convertStreamEvent("[DONE]"));
+
+            // 现在应该有 response.completed
+            eventTypes = events.map((e) => {
+                try {
+                    return JSON.parse(e.data).type;
+                } catch {
+                    return null;
+                }
+            });
+            expect(eventTypes).toContain("response.completed");
+
+            // 验证 response.completed 的内容
+            const completedEvent = events.find((e) => {
+                try {
+                    return JSON.parse(e.data).type === "response.completed";
+                } catch {
+                    return false;
+                }
+            });
+            const completedData = JSON.parse(completedEvent.data);
+            expect(completedData.response.output).toHaveLength(1);
+            expect(completedData.response.output[0].type).toBe("message");
+            expect(completedData.response.output[0].content[0].text).toBe("Hi");
+        });
+
+        it("should generate response.completed when usage is combined with finish_reason frame", () => {
+            const streamConverter = new ResponsesToOpenAIConverter("gpt-4");
+            const events: any[] = [];
+
+            // 首帧
+            const chunk1: OpenAIChunk = {
+                id: "chatcmpl-123",
+                object: "chat.completion.chunk",
+                created: 1234567890,
+                model: "gpt-4",
+                choices: [{
+                    index: 0,
+                    delta: { role: "assistant", content: "Hello!" },
+                    finish_reason: null,
+                }],
+            };
+            events.push(...streamConverter.convertStreamEvent(JSON.stringify(chunk1)));
+
+            // 结束帧 + usage 合并（DeepSeek 风格）
+            const chunk2: OpenAIChunk = {
+                id: "chatcmpl-123",
+                object: "chat.completion.chunk",
+                created: 1234567890,
+                model: "gpt-4",
+                choices: [{
+                    index: 0,
+                    delta: {},
+                    finish_reason: "stop",
+                }],
+                usage: {
+                    prompt_tokens: 10,
+                    completion_tokens: 5,
+                    total_tokens: 15,
+                },
+            };
+            events.push(...streamConverter.convertStreamEvent(JSON.stringify(chunk2)));
+
+            // 应该已经有 response.completed（不需要 [DONE]）
+            const eventTypes = events.map((e) => {
+                try {
+                    return JSON.parse(e.data).type;
+                } catch {
+                    return null;
+                }
+            });
+            expect(eventTypes).toContain("response.completed");
+
+            // 验证 response.completed 的内容
+            const completedEvent = events.find((e) => {
+                try {
+                    return JSON.parse(e.data).type === "response.completed";
+                } catch {
+                    return false;
+                }
+            });
+            const completedData = JSON.parse(completedEvent.data);
+            expect(completedData.response.output).toHaveLength(1);
+            expect(completedData.response.output[0].type).toBe("message");
+            expect(completedData.response.output[0].content[0].text).toBe("Hello!");
+            expect(completedData.response.usage.input_tokens).toBe(10);
+            expect(completedData.response.usage.output_tokens).toBe(5);
         });
     });
 

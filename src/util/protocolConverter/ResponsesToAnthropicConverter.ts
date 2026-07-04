@@ -65,9 +65,51 @@ export class ResponsesToAnthropicConverter extends BaseConverter {
         if (typeof req.input === "string") {
             messages.push({ role: "user", content: req.input });
         } else {
+            // 合并连续的 function_call 和 function_call_output
+            let pendingToolUses: AnthropicContentBlock[] = [];
+            let pendingToolResults: AnthropicContentBlock[] = [];
+
+            const flushToolUses = () => {
+                if (pendingToolUses.length > 0) {
+                    messages.push({ role: "assistant", content: pendingToolUses });
+                    pendingToolUses = [];
+                }
+            };
+
+            const flushToolResults = () => {
+                if (pendingToolResults.length > 0) {
+                    messages.push({ role: "user", content: pendingToolResults });
+                    pendingToolResults = [];
+                }
+            };
+
             for (const item of req.input) {
-                this.convertInputItem(item, messages, systemText ? undefined : (t) => { systemText = t; });
+                if ("type" in item && item.type === "function_call") {
+                    // 收集 function_call
+                    pendingToolUses.push({
+                        type: "tool_use",
+                        id: item.call_id || `toolu_${Date.now()}`,
+                        name: item.name,
+                        input: this.safeParseArgs(item.arguments),
+                    });
+                } else if ("type" in item && item.type === "function_call_output") {
+                    // 收集 function_call_output
+                    pendingToolResults.push({
+                        type: "tool_result",
+                        tool_use_id: item.call_id,
+                        content: item.output,
+                    });
+                } else {
+                    // 遇到其他类型，先 flush 之前收集的内容
+                    flushToolUses();
+                    flushToolResults();
+                    this.convertInputItem(item, messages, systemText ? undefined : (t) => { systemText = t; });
+                }
             }
+
+            // flush 剩余内容
+            flushToolUses();
+            flushToolResults();
         }
 
         const anthropicReq: AnthropicRequest = {

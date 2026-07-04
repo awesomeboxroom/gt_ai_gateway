@@ -423,8 +423,65 @@ describe("ResponsesToAnthropicConverter - convertRequest", () => {
         };
 
         const result = converter.convertRequest(req);
-        // 1 user + 2 assistant (tool_use) + 2 user (tool_result) = 5
-        expect(result.messages).toHaveLength(5);
+        // 1 user + 1 assistant (merged tool_use) + 1 user (merged tool_result) = 3
+        expect(result.messages).toHaveLength(3);
+        // 验证连续的 function_call 被合并到一个 assistant 消息
+        expect(result.messages[1].role).toBe("assistant");
+        expect(Array.isArray(result.messages[1].content)).toBe(true);
+        expect((result.messages[1].content as any[]).length).toBe(2);
+        expect((result.messages[1].content as any[])[0].type).toBe("tool_use");
+        expect((result.messages[1].content as any[])[1].type).toBe("tool_use");
+        // 验证连续的 function_call_output 被合并到一个 user 消息
+        expect(result.messages[2].role).toBe("user");
+        expect(Array.isArray(result.messages[2].content)).toBe(true);
+        expect((result.messages[2].content as any[]).length).toBe(2);
+        expect((result.messages[2].content as any[])[0].type).toBe("tool_result");
+        expect((result.messages[2].content as any[])[1].type).toBe("tool_result");
+    });
+
+    it("should produce valid Anthropic format with multiple tool_use and tool_result", () => {
+        // 模拟真实场景：3 个并行 function_call + 3 个 function_call_output
+        const req: ResponsesRequest = {
+            model: "claude-3-opus",
+            input: [
+                { type: "message", role: "user", content: [{ type: "input_text", text: "Run 3 commands" }] },
+                { type: "function_call", call_id: "call_00", name: "exec_command", arguments: '{"cmd":"ls"}' },
+                { type: "function_call", call_id: "call_01", name: "exec_command", arguments: '{"cmd":"pwd"}' },
+                { type: "function_call", call_id: "call_02", name: "exec_command", arguments: '{"cmd":"whoami"}' },
+                { type: "function_call_output", call_id: "call_00", output: "file1.txt\nfile2.txt" },
+                { type: "function_call_output", call_id: "call_01", output: "/home/user" },
+                { type: "function_call_output", call_id: "call_02", output: "root" },
+                { type: "message", role: "user", content: [{ type: "input_text", text: "Done" }] },
+            ],
+        };
+
+        const result = converter.convertRequest(req);
+
+        // 验证消息结构：user + assistant(3 tool_use) + user(3 tool_result) + user = 4
+        expect(result.messages).toHaveLength(4);
+
+        // 验证 assistant 消息包含所有 3 个 tool_use
+        const assistantMsg = result.messages[1];
+        expect(assistantMsg.role).toBe("assistant");
+        expect(Array.isArray(assistantMsg.content)).toBe(true);
+        expect((assistantMsg.content as any[]).length).toBe(3);
+        expect((assistantMsg.content as any[])[0].type).toBe("tool_use");
+        expect((assistantMsg.content as any[])[1].type).toBe("tool_use");
+        expect((assistantMsg.content as any[])[2].type).toBe("tool_use");
+
+        // 验证 user 消息包含所有 3 个 tool_result
+        const toolResultMsg = result.messages[2];
+        expect(toolResultMsg.role).toBe("user");
+        expect(Array.isArray(toolResultMsg.content)).toBe(true);
+        expect((toolResultMsg.content as any[]).length).toBe(3);
+        expect((toolResultMsg.content as any[])[0].type).toBe("tool_result");
+        expect((toolResultMsg.content as any[])[1].type).toBe("tool_result");
+        expect((toolResultMsg.content as any[])[2].type).toBe("tool_result");
+
+        // 验证 tool_result 的 tool_use_id 正确对应
+        expect((toolResultMsg.content as any[])[0].tool_use_id).toBe("call_00");
+        expect((toolResultMsg.content as any[])[1].tool_use_id).toBe("call_01");
+        expect((toolResultMsg.content as any[])[2].tool_use_id).toBe("call_02");
     });
 });
 

@@ -62,8 +62,44 @@ export class ResponsesToOpenAIConverter extends BaseConverter {
         if (typeof req.input === "string") {
             messages.push({ role: "user", content: req.input });
         } else {
+            // 先收集连续的 function_call，合并到一个 assistant 消息
+            let pendingToolCalls: OpenAIMessage["tool_calls"] = [];
+
             for (const item of req.input) {
-                this.convertInputItem(item, messages);
+                if ("type" in item && item.type === "function_call") {
+                    // 收集 function_call
+                    if (!pendingToolCalls) {
+                        pendingToolCalls = [];
+                    }
+                    pendingToolCalls.push({
+                        id: item.call_id || `call_${Date.now()}`,
+                        type: "function",
+                        function: {
+                            name: item.name,
+                            arguments: item.arguments,
+                        },
+                    });
+                } else {
+                    // 遇到非 function_call，先 flush 之前收集的 tool_calls
+                    if (pendingToolCalls && pendingToolCalls.length > 0) {
+                        messages.push({
+                            role: "assistant",
+                            content: null,
+                            tool_calls: pendingToolCalls,
+                        });
+                        pendingToolCalls = [];
+                    }
+                    this.convertInputItem(item, messages);
+                }
+            }
+
+            // flush 剩余的 tool_calls
+            if (pendingToolCalls && pendingToolCalls.length > 0) {
+                messages.push({
+                    role: "assistant",
+                    content: null,
+                    tool_calls: pendingToolCalls,
+                });
             }
         }
 
@@ -572,8 +608,8 @@ export class ResponsesToOpenAIConverter extends BaseConverter {
             }
         }
 
-        // usage 帧（choices 为空、含 usage）→ response.completed
-        if ((!chunk.choices || chunk.choices.length === 0) && chunk.usage) {
+        // usage 帧 → response.completed
+        if (chunk.usage) {
             this.inputTokens = chunk.usage.prompt_tokens ?? this.inputTokens;
             this.outputTokens = chunk.usage.completion_tokens ?? this.outputTokens;
             const cachedTokens = (chunk.usage as any).prompt_tokens_details?.cached_tokens;
@@ -638,6 +674,177 @@ export class ResponsesToOpenAIConverter extends BaseConverter {
             });
 
             // reset state
+            this.resetState();
+        }
+
+        return out;
+    }
+
+    protected override handleDoneEvent(): ProtocolStreamEvent[] {
+        const out: ProtocolStreamEvent[] = [];
+
+        // 如果还没有生成 response.completed，在 [DONE] 时兜底生成
+        if (this.createdEmitted) {
+            // 收尾未关闭的 block
+            if (this.reasoningActive) {
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.reasoning_summary_text.done",
+                        sequence_number: this.nextSeq(),
+                        item_id: this.reasoningItemId,
+                        output_index: 0,
+                        summary_index: 0,
+                        text: this.reasoningBuf,
+                    }),
+                });
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.reasoning_summary_part.done",
+                        sequence_number: this.nextSeq(),
+                        item_id: this.reasoningItemId,
+                        output_index: 0,
+                        summary_index: 0,
+                        part: { type: "summary_text", text: this.reasoningBuf },
+                    }),
+                });
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.output_item.done",
+                        sequence_number: this.nextSeq(),
+                        output_index: 0,
+                        item: {
+                            id: this.reasoningItemId,
+                            type: "reasoning",
+                            summary: this.reasoningBuf ? [{ type: "summary_text", text: this.reasoningBuf }] : [],
+                        },
+                    }),
+                });
+                this.reasoningActive = false;
+            }
+
+            if (this.messageOpen) {
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.output_text.done",
+                        sequence_number: this.nextSeq(),
+                        item_id: this.currentMsgId,
+                        output_index: 0,
+                        content_index: 0,
+                        text: this.textBuf,
+                    }),
+                });
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.content_part.done",
+                        sequence_number: this.nextSeq(),
+                        item_id: this.currentMsgId,
+                        output_index: 0,
+                        content_index: 0,
+                        part: { type: "output_text", text: this.textBuf },
+                    }),
+                });
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.output_item.done",
+                        sequence_number: this.nextSeq(),
+                        output_index: 0,
+                        item: {
+                            id: this.currentMsgId,
+                            type: "message",
+                            status: "completed",
+                            content: [{ type: "output_text", text: this.textBuf }],
+                            role: "assistant",
+                        },
+                    }),
+                });
+                this.messageOpen = false;
+                this.contentPartOpen = false;
+            }
+
+            const funcIndices = Object.keys(this.funcCallIds).map(Number).sort((a, b) => a - b);
+            for (const i of funcIndices) {
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.function_call_arguments.done",
+                        sequence_number: this.nextSeq(),
+                        item_id: `fc_${this.funcCallIds[i]}`,
+                        output_index: i,
+                        arguments: this.funcArgsBuf[i] || "{}",
+                    }),
+                });
+                out.push({
+                    data: JSON.stringify({
+                        type: "response.output_item.done",
+                        sequence_number: this.nextSeq(),
+                        output_index: i,
+                        item: {
+                            id: `fc_${this.funcCallIds[i]}`,
+                            type: "function_call",
+                            status: "completed",
+                            arguments: this.funcArgsBuf[i] || "{}",
+                            call_id: this.funcCallIds[i],
+                            name: this.funcNames[i] || "",
+                        },
+                    }),
+                });
+            }
+
+            // 生成 response.completed
+            const outputArr: any[] = [];
+            if (this.textBuf) {
+                outputArr.push({
+                    id: this.currentMsgId,
+                    type: "message",
+                    status: "completed",
+                    content: [{ type: "output_text", text: this.textBuf }],
+                    role: "assistant",
+                });
+            }
+            if (this.reasoningBuf) {
+                outputArr.push({
+                    id: this.reasoningItemId,
+                    type: "reasoning",
+                    summary: [{ type: "summary_text", text: this.reasoningBuf }],
+                });
+            }
+            for (const i of funcIndices) {
+                outputArr.push({
+                    id: `fc_${this.funcCallIds[i]}`,
+                    type: "function_call",
+                    status: "completed",
+                    arguments: this.funcArgsBuf[i] || "{}",
+                    call_id: this.funcCallIds[i],
+                    name: this.funcNames[i] || "",
+                });
+            }
+
+            const status = (this.finishReason === "stop" || this.finishReason === "tool_calls" || this.finishReason === "length" || this.finishReason === "content_filter")
+                ? "completed"
+                : "completed";
+
+            out.push({
+                data: JSON.stringify({
+                    type: "response.completed",
+                    sequence_number: this.nextSeq(),
+                    response: {
+                        id: this.responseId,
+                        object: "response",
+                        created_at: Math.floor(Date.now() / 1000),
+                        status,
+                        model: this.requestModel,
+                        output: outputArr,
+                        usage: {
+                            input_tokens: this.inputTokens,
+                            input_tokens_details: this.cacheReadTokens ? {
+                                cached_tokens: this.cacheReadTokens,
+                            } : undefined,
+                            output_tokens: this.outputTokens,
+                            total_tokens: this.inputTokens + this.cacheReadTokens + this.outputTokens,
+                        },
+                    },
+                }),
+            });
+
             this.resetState();
         }
 

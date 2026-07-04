@@ -269,4 +269,89 @@ describe("AI Protocol Conversion API", () => {
         expect(record.status).toBe("failed");
         expect(JSON.parse(record.response_data)).toEqual(response.body);
     }, 30000);
+
+
+    it("should use vendor_model allowed_formats when model has no vendor_model_id but matching vendor_model exists", async () => {
+        // This test verifies the auto-matching behavior:
+        // When model.vendor_model_id is NULL, the system should automatically
+        // find a vendor_model with matching name and use its allowed_formats.
+
+        const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+
+        // 1. Create a vendor that supports both openai and anthropic
+        const dualFormatVendor = await requestHelper.post(
+            "/vendor/create.json",
+            {
+                type: "other",
+                name: "Mock Dual Format Vendor",
+                token: "dual-format-token",
+                urls: {
+                    openai: `${mockBaseUrl}/chat/completions`,
+                    anthropic: `${mockBaseUrl}/messages`,
+                },
+            },
+            adminToken,
+        );
+
+        // 2. Create a vendor_model with allowed_formats = ["openai"] only
+        const vendorModelResponse = await requestHelper.post(
+            `/vendor/${dualFormatVendor.body.id}/model/add.json`,
+            { model_id: "restricted-model" },
+            adminToken,
+        );
+        await requestHelper.put(
+            `/vendor/${dualFormatVendor.body.id}/model/${vendorModelResponse.body.id}.json`,
+            { allowed_formats: ["openai"] },
+            adminToken,
+        );
+
+        // 3. Create a model WITHOUT vendor_model_id (auto mode)
+        // The model name matches the vendor_model's model_id
+        const autoModelName = "restricted-model";
+        const autoModel = await requestHelper.post(
+            "/model/create.json",
+            {
+                name: autoModelName,
+                vendor_id: dualFormatVendor.body.id,
+                enable: true,
+            },
+            adminToken,
+        );
+
+        // 4. Send a Responses format request
+        // According to the fallback priority: Responses -> [Anthropic, OpenAI]
+        // If vendor_model's allowed_formats is properly used, it should pick OpenAI
+        // (because allowed_formats = ["openai"])
+        // If NOT properly used (bug), it falls back to vendor's full format list
+        // and picks Anthropic first (higher priority in fallback list)
+        const responsesRequest = mockHelper.generateOpenAIChatRequest({
+            model: autoModelName,
+            stream: false,
+        });
+
+        // Send as Responses format
+        const response = await requestHelper.post(
+            "/llm/v1/responses",
+            {
+                model: autoModelName,
+                input: [
+                    {
+                        type: "message",
+                        role: "user",
+                        content: [{ type: "input_text", text: "Hello" }],
+                    },
+                ],
+                stream: false,
+            },
+            testUserToken,
+        );
+
+        // 5. Verify the record's upstream_format
+        const recordsResponse = await requestHelper.get("/record/latest.json?limit=1", adminToken);
+        const record = recordsResponse.body[0];
+
+        // The upstream_format should be "openai" (from vendor_model's allowed_formats)
+        // NOT "anthropic" (which would be chosen from vendor's full format list)
+        expect(record.upstream_format).toBe("openai");
+    }, 30000);
 });
