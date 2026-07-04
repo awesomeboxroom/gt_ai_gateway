@@ -15,7 +15,8 @@
                         </div>
                         <div class="setting-action">
                             <a-switch
-                                v-model:checked="form.cch_rewrite_enabled"
+                                :checked="form.cch_rewrite_enabled"
+                                @change="form.cch_rewrite_enabled = $event as boolean"
                                 :disabled="saving"
                             />
                         </div>
@@ -27,7 +28,8 @@
                         </div>
                         <div class="setting-action">
                             <a-switch
-                                v-model:checked="form.claude_code_tracking_rewrite_enabled"
+                                :checked="form.claude_code_tracking_rewrite_enabled"
+                                @change="form.claude_code_tracking_rewrite_enabled = $event as boolean"
                                 :disabled="saving"
                             />
                         </div>
@@ -39,7 +41,8 @@
                         </div>
                         <div class="setting-action">
                             <a-switch
-                                v-model:checked="form.responses_prompt_cache_key_enabled"
+                                :checked="form.responses_prompt_cache_key_enabled"
+                                @change="form.responses_prompt_cache_key_enabled = $event as boolean"
                                 :disabled="saving"
                             />
                         </div>
@@ -57,7 +60,8 @@
                         </div>
                         <div class="setting-action">
                             <a-switch
-                                v-model:checked="form.stream_log_enabled"
+                                :checked="form.stream_log_enabled"
+                                @change="form.stream_log_enabled = $event as boolean"
                                 :disabled="saving"
                             />
                         </div>
@@ -95,7 +99,8 @@
                                 检查更新
                             </a-button>
                             <a-switch
-                                v-model:checked="form.auto_update_enabled"
+                                :checked="form.auto_update_enabled"
+                                @change="form.auto_update_enabled = $event as boolean"
                                 :disabled="saving"
                             />
                         </div>
@@ -168,11 +173,11 @@ async function loadConfig(): Promise<void> {
     loading.value = true;
     try {
         const config = await getConfig();
-        form.cch_rewrite_enabled = config.cch_rewrite_enabled === "true";
-        originalConfig.cch_rewrite_enabled = config.cch_rewrite_enabled === "true";
+        form.cch_rewrite_enabled = config.cch_rewrite_enabled !== "false";
+        originalConfig.cch_rewrite_enabled = config.cch_rewrite_enabled !== "false";
         
-        form.responses_prompt_cache_key_enabled = config.responses_prompt_cache_key_enabled === "true";
-        originalConfig.responses_prompt_cache_key_enabled = config.responses_prompt_cache_key_enabled === "true";
+        form.responses_prompt_cache_key_enabled = config.responses_prompt_cache_key_enabled !== "false";
+        originalConfig.responses_prompt_cache_key_enabled = config.responses_prompt_cache_key_enabled !== "false";
         
         form.claude_code_tracking_rewrite_enabled = config.claude_code_tracking_rewrite_enabled !== "false"; // Default to true
         originalConfig.claude_code_tracking_rewrite_enabled = config.claude_code_tracking_rewrite_enabled !== "false";

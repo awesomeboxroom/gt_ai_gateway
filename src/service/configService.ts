@@ -93,7 +93,7 @@ async function getAll(): Promise<Record<string, string>> {
         isAllLoaded = true;
     }
     
-    const result: Record<string, string> = {};
+    const result: Record<string, string> = { ...CONFIG_DEFAULTS };
     for (const [key, value] of cache.entries()) {
         if (value !== null) {
             result[key] = value;

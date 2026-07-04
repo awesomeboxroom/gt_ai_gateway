@@ -9,12 +9,13 @@ describe("Config API", () => {
         await dbHelper.truncate();
     });
 
-    it("should return advanced config with request rewrite features disabled by default", async () => {
+    it("should return advanced config with request rewrite features enabled by default", async () => {
         const response = await requestHelper.get("/config.json", ROOT_TOKEN);
 
         expect(response.body).toBeDefined();
-        expect(response.body.cch_rewrite_enabled).toBeUndefined();
-        expect(response.body.responses_prompt_cache_key_enabled).toBeUndefined();
+        expect(response.body.cch_rewrite_enabled).toBe("true");
+        expect(response.body.responses_prompt_cache_key_enabled).toBe("true");
+        expect(response.body.auto_update_enabled).toBe("true");
     });
 
     it("should update config values and return updated config", async () => {
