@@ -6,12 +6,13 @@ import { SgModel } from "../model/sgModel";
 import { SgRecord } from "../model/sgRecord";
 import packageJson from "../../package.json";
 import hostService from "../service/hostService";
+import { RunMode } from "../constants";
 
 // 当前实例的启动时间（延迟初始化，避免 Workers 模块加载时日期异常）
 let INSTANCE_START_TIME: Date | null = null;
 
 function getEnvironmentName(): string {
-    if (ormService.mode === "worker") return "Cloudflare Workers";
+    if (ormService.mode === RunMode.WORKER) return "Cloudflare Workers";
     if (globalThis.process?.argv?.includes("--desktop-mode")) return "Desktop App";
     return "Node";
 }
@@ -26,7 +27,7 @@ function getInstanceStartTime(): Date {
 
 
 function getApiAddress(c: Context): string {
-    if (ormService.mode === "worker") {
+    if (ormService.mode === RunMode.WORKER) {
         return new URL(c.req.url).origin;
     }
 
@@ -57,7 +58,7 @@ function formatUptime(startTime: Date): string {
 
 function welcome(c: Context) {
     const message =
-        ormService.mode === "worker"
+        ormService.mode === RunMode.WORKER
             ? "Hello, welcome to serverless ai gateway!"
             : "Hello, welcome to serverless ai gateway (node mode)!";
     return c.text(message);

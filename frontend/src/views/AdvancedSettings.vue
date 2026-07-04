@@ -44,10 +44,16 @@
                             />
                         </div>
                     </div>
-                    <div class="setting-item">
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 class="section-title">调试与日志</h3>
+                <div class="settings-list">
+                    <div class="setting-item" v-if="!isWorkerMode">
                         <div class="setting-info">
                             <div class="setting-title">流式日志记录</div>
-                            <div class="setting-desc">启用后，会将上游返回的原始 SSE 流式响应写入 log/stream/&lt;record_id&gt;.log，仅本地 Node 模式下生效，用于调试和生成测试样本</div>
+                            <div class="setting-desc">启用后，会将上游返回的原始 SSE 流式响应写入 log/stream/&lt;record_id&gt;.log，仅本地 Node 模式下生效，用于抓取原始流式请求</div>
                         </div>
                         <div class="setting-action">
                             <a-switch
@@ -111,9 +117,12 @@ import { message } from 'ant-design-vue/es';
 import { getConfig, updateConfig } from '@/api/config';
 import { checkUpdate } from '@/api/system';
 import { useAppStore } from '@/stores/app';
+import { RunMode } from '@/types/system';
 
 const appStore = useAppStore();
 const currentVersion = computed(() => appStore.version);
+// Cloudflare Workers 模式下无法写本地日志文件，隐藏流式日志开关
+const isWorkerMode = computed(() => appStore.mode === RunMode.WORKER);
 const checkingUpdate = ref(false);
 const checkedUpdate = ref(false);
 const hasUpdate = ref(false);
@@ -163,9 +172,8 @@ async function loadConfig(): Promise<void> {
 
         form.stream_log_enabled = config.stream_log_enabled === "true";
         originalConfig.stream_log_enabled = config.stream_log_enabled === "true";
-        if (!appStore.version) {
-            appStore.fetchVersion();
-        }
+        // 始终拉取一次 status，确保 mode（用于判断是否 worker 模式）是最新的
+        await appStore.fetchVersion();
     } finally {
         loading.value = false;
     }

@@ -7,7 +7,7 @@ import ormService from "../../src/service/ormService";
 import SgClientConfig from "../../src/model/sgClientConfig";
 import { SgUser } from "../../src/model/sgUser";
 import { SgVendor } from "../../src/model/sgVendor";
-import { ClientName, ConnectionMode, UserType, UserStatus, VendorType } from "../../src/constants";
+import { ClientName, ConnectionMode, RunMode, UserType, UserStatus, VendorType } from "../../src/constants";
 import dbHelper from "../helpers/dbHelper";
 import ormTestHelper from "../helpers/ormTestHelper";
 
@@ -17,7 +17,7 @@ describe("clientConfigService", () => {
     let tempDir = "";
     let originalHome: string | undefined;
     let originalCodexHome: string | undefined;
-    let originalOrmMode: "worker" | "node";
+    let originalOrmMode: RunMode;
     let testUserId = 0;
     let testVendorId = 0;
 
@@ -31,7 +31,7 @@ describe("clientConfigService", () => {
 
     beforeEach(async () => {
         await dbHelper.truncate();
-        ormService.mode = "node";
+        ormService.mode = RunMode.NODE;
         tempDir = await mkdtemp(join(tempRoot, "home-"));
         process.env.HOME = tempDir;
         process.env.CODEX_HOME = join(tempDir, ".codex");
@@ -68,7 +68,7 @@ describe("clientConfigService", () => {
     });
 
     it("reports unavailable in worker mode", async () => {
-        ormService.mode = "worker";
+        ormService.mode = RunMode.WORKER;
 
         const status = await clientConfigService.getStatus();
 

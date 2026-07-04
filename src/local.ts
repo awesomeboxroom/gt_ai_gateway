@@ -8,6 +8,7 @@ import recordService from "./service/recordService";
 import hostService from "./service/hostService";
 import app, { Env } from "./routes";
 import initLogger, { Logger } from "./util/logger";
+import { RunMode } from "./constants";
 
 // --api-only: 跳过前端静态文件服务，仅提供 API（桌面 sidecar 模式使用）
 export const apiOnly = process.argv.includes("--api-only");
@@ -90,7 +91,7 @@ async function startServer() {
 
     // 初始化本地配置
     await ormService.init({
-        mode: "node",
+        mode: RunMode.NODE,
         dbPath: DB_PATH,
     });
     

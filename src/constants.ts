@@ -40,6 +40,11 @@ export enum ConnectionMode {
     OFFICIAL = "official",
 }
 
+export enum RunMode {
+    WORKER = "worker",
+    NODE = "node",
+}
+
 export enum UserType {
     NORMAL = "normal",
     ADMIN = "admin",

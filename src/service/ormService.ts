@@ -2,21 +2,22 @@ import { sutando } from "sutando";
 import { DatabaseAdapter, D1Adapter, SQLiteAdapter } from "./dbAdapter";
 import customError from "../util/customError";
 import dbScript from "../../script/db";
+import { RunMode } from "../constants";
 
 interface ORMOptions {
-    mode: "worker" | "node";
+    mode: RunMode;
     dbPath?: string;
 }
 
 class ORMService {
     private _dbAdapter: DatabaseAdapter | null = null;
-    public mode: "worker" | "node" = "worker";
+    public mode: RunMode = RunMode.WORKER;
 
     async init(options: ORMOptions): Promise<DatabaseAdapter> {
         const { mode, dbPath } = options;
         this.mode = mode;
 
-        if (mode === "worker") {
+        if (mode === RunMode.WORKER) {
             this._dbAdapter = new D1Adapter();
         } else {
             if (!dbPath) {
@@ -142,17 +143,17 @@ class ORMService {
     }
 
     async prepareDBConnection(db: any) {
-        if (this.mode === "worker") {
+        if (this.mode === RunMode.WORKER) {
             await this.connectWorker(db);
         }
     }
 
     get isNode(): boolean {
-        return this.mode === "node";
+        return this.mode === RunMode.NODE;
     }
 
     get isWorker(): boolean {
-        return this.mode === "worker";
+        return this.mode === RunMode.WORKER;
     }
 
     get dbAdapter(): DatabaseAdapter {

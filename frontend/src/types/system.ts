@@ -1,3 +1,10 @@
+export const RunMode = {
+    WORKER: 'worker',
+    NODE: 'node',
+} as const;
+
+export type RunMode = typeof RunMode[keyof typeof RunMode];
+
 export interface WelcomeResponse {
     user_type?: string;
 }
@@ -19,7 +26,7 @@ export interface SystemStatistics {
 
 export interface StatusResponse {
     status?: string;
-    mode?: string;
+    mode?: RunMode;
     user_type?: string;
     system?: SystemStatusInfo;
     statistics?: SystemStatistics;
