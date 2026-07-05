@@ -1,4 +1,4 @@
-import { SgRecord } from "../model/sgRecord";
+import { SgRecord, RECORD_SUMMARY_COLUMNS } from "../model/sgRecord";
 import { SgRecordStatus } from "../constants";
 
 function isLogEnabled(): boolean {
@@ -46,8 +46,12 @@ async function update(recordId: number, data: Partial<SgRecord>) {
     return SgRecord.query().where("id", recordId).update(data);
 }
 
-async function latest(limit: number = 10) {
-    return SgRecord.query().orderBy("id", "desc").limit(limit).get();
+async function latest(limit: number = 10, summaryOnly: boolean = false) {
+    const q = SgRecord.query().orderBy("id", "desc").limit(limit);
+    if (summaryOnly) {
+        q.select(RECORD_SUMMARY_COLUMNS);
+    }
+    return q.get();
 }
 
 export default {

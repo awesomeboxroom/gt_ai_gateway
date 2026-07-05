@@ -1,5 +1,5 @@
 import { Context } from "hono";
-import { SgRecord } from "../model/sgRecord";
+import { SgRecord, RECORD_SUMMARY_COLUMNS } from "../model/sgRecord";
 import recordService from "../service/recordService";
 import { parsePaginationQuery } from "../util/pagination";
 
@@ -54,7 +54,7 @@ async function listRecords(c: Context) {
     }
 
     const total = Number(await q.clone().count() || 0);
-    const records = await q.orderBy("id", "desc").limit(pageSize).offset(offset).get();
+    const records = await q.select(RECORD_SUMMARY_COLUMNS).orderBy("id", "desc").limit(pageSize).offset(offset).get();
 
     return c.json({
         list: records.map(serializeRecord),
@@ -65,7 +65,7 @@ async function listRecords(c: Context) {
 async function latestRecords(c: Context) {
     const query = c.req.query();
     const { pageSize } = parsePaginationQuery(query, 10);
-    const records = await recordService.latest(pageSize);
+    const records = await recordService.latest(pageSize, false);
     return c.json(records.map(serializeRecord));
 }
 

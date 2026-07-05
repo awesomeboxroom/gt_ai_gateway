@@ -48,4 +48,11 @@ class SgRecord extends Model {
     }
 }
 
-export { SgRecord, SgRecordUsage };
+const RECORD_SUMMARY_COLUMNS = [
+    "id", "user_id", "model_id", "vendor_id", "vendor_model_name",
+    "status", "failed_code", "client_format", "upstream_format",
+    "usage", "first_token_latency", "start_at", "end_at", "cost",
+    "created_at", "updated_at"
+];
+
+export { SgRecord, SgRecordUsage, RECORD_SUMMARY_COLUMNS };
