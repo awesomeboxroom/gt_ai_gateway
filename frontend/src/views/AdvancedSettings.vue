@@ -68,8 +68,8 @@
                     </div>
                     <div class="setting-item">
                         <div class="setting-info">
-                            <div class="setting-title">禁用开发者数据共享</div>
-                            <div class="setting-desc">启用后，将彻底禁用所有的遥测请求。此配置全局生效。</div>
+                            <div class="setting-title">退出用户体验改进计划</div>
+                            <div class="setting-desc">开启后，将彻底关闭和开发者共享数据来帮助改进产品。此配置全局生效。</div>
                         </div>
                         <div class="setting-action">
                             <a-switch
