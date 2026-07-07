@@ -88,6 +88,7 @@ struct AppConfig {
     root_token: String,
 }
 
+
 /// 生成随机 token（UUID v4）
 fn generate_random_token() -> String {
     uuid::Uuid::new_v4().to_string()
@@ -152,6 +153,7 @@ fn read_config(app_data_dir: &Path) -> AppConfig {
 
 fn show_main_window(app: &tauri::AppHandle) {
     println!("RUST: show_main_window called");
+    sys::platform::set_dock_visibility(app, true);
     if let Some(window) = app.get_webview_window("main") {
         println!("RUST: main window already exists, showing it");
         let _ = window.show();
@@ -320,9 +322,13 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|_window, event| {
-            if let WindowEvent::CloseRequested { .. } = event {
-                // window is naturally closed and destroyed, saving memory
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    sys::platform::set_dock_visibility(window.app_handle(), false);
+                }
             }
         })
         .build(tauri::generate_context!())

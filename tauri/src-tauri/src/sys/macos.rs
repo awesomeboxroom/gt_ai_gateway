@@ -43,3 +43,15 @@ pub fn setup_command(cmd: &mut Command) -> PlatformState {
 pub fn post_spawn(state: &mut PlatformState, child: &mut std::process::Child) {
     crate::sys::unix::post_spawn(state, child)
 }
+
+pub fn set_dock_visibility(app: &tauri::AppHandle, visible: bool) {
+    let policy = if visible {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    };
+
+    if let Err(e) = app.set_activation_policy(policy) {
+        println!("RUST: failed to set dock visibility to {}: {:?}", visible, e);
+    }
+}

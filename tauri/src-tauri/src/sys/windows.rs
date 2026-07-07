@@ -44,3 +44,5 @@ pub fn post_spawn(state: &mut PlatformState, child: &mut std::process::Child) {
     // Tauri 退出或崩溃时被释放，子进程 stdin 管道将收到 close/end 事件从而自动清理
     state.stdin = child.stdin.take();
 }
+
+pub fn set_dock_visibility(_app: &tauri::AppHandle, _visible: bool) {}
