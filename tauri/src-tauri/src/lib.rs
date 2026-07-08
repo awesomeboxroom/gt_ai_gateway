@@ -4,17 +4,88 @@ pub mod utils;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{
-    atomic::{AtomicBool, AtomicI32, Ordering},
+    atomic::{AtomicU64, Ordering},
     Mutex,
     OnceLock,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-static BACKEND_EXIT_CODE: AtomicI32 = AtomicI32::new(0);
-static BACKEND_HAS_EXITED: AtomicBool = AtomicBool::new(false);
-static BACKEND_IS_READY: AtomicBool = AtomicBool::new(false);
-static BACKEND_IS_MIGRATING: AtomicBool = AtomicBool::new(false);
-static BACKEND_START_REQUESTED: AtomicBool = AtomicBool::new(false);
+#[derive(Debug, Clone)]
+enum BackendError {
+    ExitCode(i32),
+    Message(String),
+}
+
+#[derive(Debug, Clone)]
+enum BackendState {
+    NotStarted,
+    Starting,
+    Migrating,
+    Ready,
+    Failed(BackendError),
+    Exited(i32),
+}
+
+impl BackendError {
+    fn describe(&self) -> String {
+        match self {
+            BackendError::ExitCode(code) => format!("ExitCode({})", code),
+            BackendError::Message(message) => format!("Message({})", message),
+        }
+    }
+}
+
+impl BackendState {
+    fn is_not_started(&self) -> bool {
+        matches!(self, BackendState::NotStarted)
+    }
+
+    fn is_starting(&self) -> bool {
+        matches!(self, BackendState::Starting)
+    }
+
+    fn is_migrating(&self) -> bool {
+        matches!(self, BackendState::Migrating)
+    }
+
+    fn is_ready(&self) -> bool {
+        matches!(self, BackendState::Ready)
+    }
+
+    fn is_waiting_for_ready(&self) -> bool {
+        matches!(self, BackendState::Starting | BackendState::Migrating)
+    }
+
+    fn describe(&self) -> String {
+        match self {
+            BackendState::NotStarted => "NotStarted".to_string(),
+            BackendState::Starting => "Starting".to_string(),
+            BackendState::Migrating => "Migrating".to_string(),
+            BackendState::Ready => "Ready".to_string(),
+            BackendState::Failed(error) => format!("Failed({})", error.describe()),
+            BackendState::Exited(code) => format!("Exited({})", code),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StartupGate {
+    setup_finished: bool,
+    splash_loaded: bool,
+}
+
+impl StartupGate {
+    fn is_ready(&self) -> bool {
+        self.setup_finished && self.splash_loaded
+    }
+}
+
+static BACKEND_STATE: Mutex<BackendState> = Mutex::new(BackendState::NotStarted);
+static STARTUP_GATE: Mutex<StartupGate> = Mutex::new(StartupGate {
+    setup_finished: false,
+    splash_loaded: false,
+});
+static BACKEND_START_TIMEOUT_GENERATION: AtomicU64 = AtomicU64::new(0);
 static RUST_STARTED_AT: OnceLock<Instant> = OnceLock::new();
 
 use tauri::{
@@ -22,17 +93,72 @@ use tauri::{
     menu::{Menu, MenuItem},
     path::BaseDirectory,
     tray::TrayIconBuilder,
-    Manager, WindowEvent,
+    webview::PageLoadEvent,
+    Emitter, Manager, WindowEvent,
 };
 
 const DEFAULT_PORT: u16 = 6722;
 const DEFAULT_HOST: &str = "127.0.0.1";
 const MIGRATION_START_MARKER: &str = "[GT_AI_GATEWAY_MIGRATION_START]";
 const MIGRATION_END_MARKER: &str = "[GT_AI_GATEWAY_MIGRATION_END]";
+const BACKEND_START_TIMEOUT_MS: u64 = 15_000;
 
 fn rust_log(message: impl std::fmt::Display) {
     let elapsed_ms = RUST_STARTED_AT.get_or_init(Instant::now).elapsed().as_millis();
     println!("RUST +{}ms: {}", elapsed_ms, message);
+}
+
+fn with_backend_state<T>(f: impl FnOnce(&mut BackendState) -> T) -> T {
+    let mut state = BACKEND_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    f(&mut state)
+}
+
+fn backend_state_snapshot() -> BackendState {
+    BACKEND_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+}
+
+fn backend_is_ready() -> bool {
+    backend_state_snapshot().is_ready()
+}
+
+fn backend_state_description() -> String {
+    backend_state_snapshot().describe()
+}
+
+fn set_backend_failed(error: BackendError) {
+    with_backend_state(|state| {
+        *state = BackendState::Failed(error);
+    });
+}
+
+fn emit_backend_error(app: &tauri::AppHandle, error: &BackendError) {
+    match error {
+        BackendError::ExitCode(code) => {
+            let _ = app.emit("backend-error", *code);
+        }
+        BackendError::Message(message) => {
+            let _ = app.emit("backend-error", message.clone());
+        }
+    }
+}
+
+fn with_startup_gate<T>(f: impl FnOnce(&mut StartupGate) -> T) -> T {
+    let mut gate = STARTUP_GATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    f(&mut gate)
+}
+
+fn startup_gate_snapshot() -> StartupGate {
+    STARTUP_GATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .to_owned()
 }
 
 /// 存储后端实际使用的 URL，供前端通过 Tauri 命令查询
@@ -75,8 +201,7 @@ fn exit_app() {
     std::process::exit(1);
 }
 
-#[tauri::command]
-fn show_splash_window(app: tauri::AppHandle) -> Result<(), String> {
+fn show_splash_window(app: &tauri::AppHandle) -> Result<(), String> {
     rust_log("show_splash_window invoked");
     if let Some(splash) = app.get_webview_window("splashscreen") {
         splash.show().map_err(|e| e.to_string())?;
@@ -89,8 +214,7 @@ fn show_splash_window(app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-async fn open_main_window(app: tauri::AppHandle) -> Result<(), String> {
+fn open_main_window(app: &tauri::AppHandle) {
     rust_log("open_main_window invoked");
     if let Some(splash) = app.get_webview_window("splashscreen") {
         rust_log("closing splashscreen window");
@@ -98,57 +222,113 @@ async fn open_main_window(app: tauri::AppHandle) -> Result<(), String> {
     } else {
         rust_log("splashscreen window not found when opening main window");
     }
-    tauri::async_runtime::spawn_blocking(move || {
-        show_main_window(&app)
-    }).await.map_err(|e| e.to_string())?;
-    Ok(())
+    show_main_window(app);
 }
 
-#[tauri::command]
-fn check_backend_status() -> Result<(), i32> {
-    let code = BACKEND_EXIT_CODE.load(Ordering::SeqCst);
-    let has_exited = BACKEND_HAS_EXITED.load(Ordering::SeqCst);
-    if has_exited && !BACKEND_IS_READY.load(Ordering::SeqCst) {
-        Err(code)
-    } else if code != 0 {
-        Err(code)
-    } else {
-        Ok(())
+fn cancel_backend_start_timeout() {
+    BACKEND_START_TIMEOUT_GENERATION.fetch_add(1, Ordering::SeqCst);
+}
+
+fn schedule_backend_start_timeout(app: tauri::AppHandle) {
+    let generation = BACKEND_START_TIMEOUT_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    rust_log(format!(
+        "backend start timeout scheduled, generation={}, timeout_ms={}",
+        generation, BACKEND_START_TIMEOUT_MS,
+    ));
+
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(BACKEND_START_TIMEOUT_MS));
+
+        if BACKEND_START_TIMEOUT_GENERATION.load(Ordering::SeqCst) != generation {
+            rust_log(format!(
+                "backend start timeout ignored, generation={}",
+                generation
+            ));
+            return;
+        }
+
+        let timed_out = with_backend_state(|state| {
+            if state.is_starting() {
+                *state = BackendState::Failed(BackendError::Message(
+                    "后端启动超时：15 秒内没有收到后端就绪事件。".to_string(),
+                ));
+                true
+            } else {
+                false
+            }
+        });
+
+        if !timed_out {
+            rust_log(format!(
+                "backend start timeout skipped, state={}",
+                backend_state_description(),
+            ));
+            return;
+        }
+
+        rust_log("backend start timed out");
+        let _ = app.emit(
+            "backend-error",
+            "后端启动超时：15 秒内没有收到后端就绪事件。",
+        );
+    });
+}
+
+fn maybe_start_backend_after_splash_load(app: tauri::AppHandle) {
+    let startup_gate = startup_gate_snapshot();
+    if !startup_gate.is_ready() {
+        if !startup_gate.splash_loaded {
+            rust_log("backend start deferred, splash page not loaded yet");
+        }
+        if !startup_gate.setup_finished {
+            rust_log("backend start deferred, app setup not finished yet");
+        }
+        return;
     }
-}
 
-#[tauri::command]
-fn is_backend_ready() -> bool {
-    BACKEND_IS_READY.load(Ordering::SeqCst)
-}
+    if backend_is_ready() {
+        rust_log("backend start skipped, backend is already ready");
+        return;
+    }
 
-#[tauri::command]
-fn is_backend_migrating() -> bool {
-    BACKEND_IS_MIGRATING.load(Ordering::SeqCst)
-}
+    let should_start = with_backend_state(|state| {
+        if state.is_not_started() {
+            *state = BackendState::Starting;
+            true
+        } else {
+            false
+        }
+    });
+    if !should_start {
+        rust_log(format!(
+            "backend start skipped, state={}",
+            backend_state_description(),
+        ));
+        return;
+    }
 
-#[tauri::command]
-async fn start_backend(app: tauri::AppHandle) -> Result<(), String> {
-    rust_log("start_backend invoked");
-    tauri::async_runtime::spawn_blocking(move || start_backend_process(&app))
-        .await
-        .map_err(|e| e.to_string())?
+    if let Err(error) = show_splash_window(&app) {
+        let backend_error = BackendError::Message(error.clone());
+        set_backend_failed(backend_error.clone());
+        rust_log(format!(
+            "failed to show splash before backend start: {}",
+            error
+        ));
+        emit_backend_error(&app, &backend_error);
+        return;
+    }
+
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(error) = start_backend_process(&app) {
+            let backend_error = BackendError::Message(error.clone());
+            set_backend_failed(backend_error.clone());
+            rust_log(format!("failed to start backend process: {}", error));
+            emit_backend_error(&app, &backend_error);
+        }
+    });
 }
 
 fn start_backend_process(app: &tauri::AppHandle) -> Result<(), String> {
-    if BACKEND_START_REQUESTED
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        rust_log("start_backend ignored because backend start was already requested");
-        return Ok(());
-    }
-
-    BACKEND_EXIT_CODE.store(0, Ordering::SeqCst);
-    BACKEND_HAS_EXITED.store(false, Ordering::SeqCst);
-    BACKEND_IS_READY.store(false, Ordering::SeqCst);
-    BACKEND_IS_MIGRATING.store(false, Ordering::SeqCst);
-
     let launch_config = app.state::<BackendLaunchConfig>();
     let db_path = launch_config.db_path.clone();
     let log_dir = launch_config.log_dir.clone();
@@ -182,7 +362,6 @@ fn start_backend_process(app: &tauri::AppHandle) -> Result<(), String> {
     let mut child = match cmd.spawn() {
         Ok(child) => child,
         Err(e) => {
-            BACKEND_START_REQUESTED.store(false, Ordering::SeqCst);
             return Err(format!("failed to spawn backend sidecar: {}", e));
         }
     };
@@ -198,6 +377,7 @@ fn start_backend_process(app: &tauri::AppHandle) -> Result<(), String> {
     *stored_platform_state = Some(platform_state);
     drop(stored_platform_state);
 
+    schedule_backend_start_timeout(app.clone());
     watch_backend_stdout(app.clone(), child, stdout);
     rust_log("backend process spawned");
     Ok(())
@@ -210,7 +390,6 @@ fn watch_backend_stdout(
 ) {
     std::thread::spawn(move || {
         use std::io::{BufRead, BufReader};
-        use tauri::Emitter;
 
         rust_log("STDOUT_READER_THREAD_STARTED");
 
@@ -218,41 +397,93 @@ fn watch_backend_stdout(
         if let Some(out) = stdout {
             let reader = BufReader::new(out);
             for line in reader.lines() {
-                if let Ok(line_str) = line {
-                    rust_log(format!("BACKEND_STDOUT: {}", line_str));
-                    if line_str.contains(MIGRATION_START_MARKER) {
-                        BACKEND_IS_MIGRATING.store(true, Ordering::SeqCst);
-                        let _ = app_handle.emit("backend-migration-start", ());
+                match line {
+                    Ok(line_str) => {
+                        rust_log(format!("BACKEND_STDOUT: {}", line_str));
+                        if line_str.contains(MIGRATION_START_MARKER) {
+                            let started = with_backend_state(|state| {
+                                if state.is_starting() {
+                                    *state = BackendState::Migrating;
+                                    true
+                                } else {
+                                    false
+                                }
+                            });
+                            if started {
+                                cancel_backend_start_timeout();
+                                let _ = app_handle.emit("backend-migration-start", ());
+                            } else {
+                                rust_log(format!(
+                                    "backend migration start ignored, state={}",
+                                    backend_state_description(),
+                                ));
+                            }
+                        }
+                        if line_str.contains(MIGRATION_END_MARKER) {
+                            let ended = with_backend_state(|state| {
+                                if state.is_migrating() {
+                                    *state = BackendState::Starting;
+                                    true
+                                } else {
+                                    false
+                                }
+                            });
+                            if ended {
+                                let _ = app_handle.emit("backend-migration-end", line_str.clone());
+                                schedule_backend_start_timeout(app_handle.clone());
+                            } else {
+                                rust_log(format!(
+                                    "backend migration end ignored, state={}",
+                                    backend_state_description(),
+                                ));
+                            }
+                        }
+                        // 检测到成功启动的关键日志
+                        if line_str.contains("Server listening on") {
+                            let should_open = with_backend_state(|state| {
+                                if state.is_waiting_for_ready() {
+                                    *state = BackendState::Ready;
+                                    true
+                                } else {
+                                    false
+                                }
+                            });
+                            if should_open {
+                                cancel_backend_start_timeout();
+                                let _ = app_handle.emit("backend-ready", ());
+                                open_main_window(&app_handle);
+                            } else {
+                                rust_log(format!(
+                                    "backend ready ignored, state={}",
+                                    backend_state_description(),
+                                ));
+                            }
+                        }
                     }
-                    if line_str.contains(MIGRATION_END_MARKER) {
-                        BACKEND_IS_MIGRATING.store(false, Ordering::SeqCst);
-                        let _ = app_handle.emit("backend-migration-end", line_str.clone());
+                    Err(e) => {
+                        rust_log(format!("STDOUT READ ERROR: {:?}", e));
                     }
-                    // 检测到成功启动的关键日志
-                    if line_str.contains("Server listening on") {
-                        BACKEND_IS_READY.store(true, Ordering::SeqCst);
-                        let _ = app_handle.emit("backend-ready", ());
-                    }
-                } else if let Err(e) = line {
-                    rust_log(format!("STDOUT READ ERROR: {:?}", e));
                 }
             }
         }
 
         // stdout 结束后（意味着子进程已经退出），收集退出码
         if let Ok(status) = child.wait() {
-            if let Some(code) = status.code() {
-                BACKEND_EXIT_CODE.store(code, Ordering::SeqCst);
-                BACKEND_HAS_EXITED.store(true, Ordering::SeqCst);
-                if !BACKEND_IS_READY.load(Ordering::SeqCst) || code != 0 {
-                    let _ = app_handle.emit("backend-error", code);
+            cancel_backend_start_timeout();
+            let code = status.code().unwrap_or(1);
+            let should_emit_error = with_backend_state(|state| match state {
+                BackendState::Ready => {
+                    *state = BackendState::Exited(code);
+                    code != 0
                 }
-            } else {
-                BACKEND_EXIT_CODE.store(1, Ordering::SeqCst);
-                BACKEND_HAS_EXITED.store(true, Ordering::SeqCst);
-                if !BACKEND_IS_READY.load(Ordering::SeqCst) {
-                    let _ = app_handle.emit("backend-error", 1);
+                BackendState::Failed(_) => false,
+                _ => {
+                    *state = BackendState::Exited(code);
+                    true
                 }
+            });
+            if should_emit_error {
+                emit_backend_error(&app_handle, &BackendError::ExitCode(code));
             }
         }
     });
@@ -366,7 +597,30 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![get_backend_url, get_auth_token, exit_app, show_splash_window, start_backend, open_main_window, check_backend_status, is_backend_ready, is_backend_migrating, log_to_rust])
+        .invoke_handler(tauri::generate_handler![
+            get_backend_url,
+            get_auth_token,
+            exit_app,
+            log_to_rust
+        ])
+        .on_page_load(|webview, payload| {
+            if webview.label() != "splashscreen" {
+                return;
+            }
+
+            match payload.event() {
+                PageLoadEvent::Started => {
+                    rust_log(format!("splash page load started, url={}", payload.url()));
+                }
+                PageLoadEvent::Finished => {
+                    rust_log(format!("splash page load finished, url={}", payload.url()));
+                    with_startup_gate(|gate| {
+                        gate.splash_loaded = true;
+                    });
+                    maybe_start_backend_after_splash_load(webview.app_handle().clone());
+                }
+            }
+        })
         .setup(|app| {
             rust_log("setup started");
             rust_log(format!(
@@ -448,6 +702,10 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            with_startup_gate(|gate| {
+                gate.setup_finished = true;
+            });
+            maybe_start_backend_after_splash_load(app.handle().clone());
             rust_log("setup finished");
             Ok(())
         })
@@ -470,7 +728,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { has_visible_windows, .. } => {
                 if !has_visible_windows {
-                    if BACKEND_IS_READY.load(Ordering::SeqCst) {
+                    if backend_is_ready() {
                         show_main_window(app_handle);
                     } else if let Some(splash) = app_handle.get_webview_window("splashscreen") {
                         let _ = splash.show();
