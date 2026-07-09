@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SgRecord } from "../../src/model/sgRecord";
 import recordService from "../../src/service/recordService";
 import objectStorageService from "../../src/service/objectStorageService";
@@ -15,8 +15,6 @@ describe("recordService (node, real db)", () => {
 
     beforeEach(async () => {
         await dbHelper.truncate();
-        // Reset config to defaults
-        await configService.setValue(ConfigKey.RECORD_PAYLOAD_ENABLED, "true");
     });
 
     async function getStoredPayload(recordId: number) {

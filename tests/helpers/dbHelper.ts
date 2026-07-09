@@ -326,7 +326,7 @@ async function truncate(): Promise<void> {
     if (isWorkerMode) {
         // In worker mode, clear D1 tables only (admin user created via API)
         clearD1Tables();
-        
+
         try {
             await fetch(`http://127.0.0.1:${config.SERVER_CONFIG.port}/test/cache/clear`, {
                 method: "DELETE",
@@ -334,6 +334,10 @@ async function truncate(): Promise<void> {
         } catch (e) {
             console.error("Failed to clear worker server cache:", e);
         }
+
+        // Clear in-memory config cache so tests don't leak state across runs
+        configService.clearCache();
+
         return;
     }
 
