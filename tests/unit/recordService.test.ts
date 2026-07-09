@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import recordService from "../../src/service/recordService";
-import { SgRecord } from "../../src/model/sgRecord";
 import { ConfigKey } from "../../src/constants";
 
 
@@ -32,11 +30,38 @@ vi.mock("../../src/service/configService", () => ({
     },
 }));
 
+const sgRecordMocks = vi.hoisted(() => ({
+    create: vi.fn((data) => Promise.resolve({ id: 1, ...data })),
+    update: vi.fn((data) => Promise.resolve([1])),
+}));
+
+vi.mock("../../src/model/sgRecord", () => ({
+    SgRecord: {
+        query: vi.fn(() => ({
+            create: sgRecordMocks.create,
+            where: vi.fn(() => ({
+                update: sgRecordMocks.update,
+            })),
+            orderBy: vi.fn(() => ({
+                limit: vi.fn(() => ({
+                    get: vi.fn(() => Promise.resolve([])),
+                    select: vi.fn(function (this: any) {
+                        return this;
+                    }),
+                })),
+            })),
+        })),
+    },
+    RECORD_SUMMARY_COLUMNS: ["id", "user_id", "model_id"],
+}));
+
+const recordService = (await import("../../src/service/recordService")).default;
+const { SgRecord } = await import("../../src/model/sgRecord");
+
 
 describe("recordService", () => {
     const originalEnv = process.env;
     const originalConsoleLog = console.log;
-    const updateMock = vi.fn((data) => Promise.resolve([1]));
 
     beforeEach(() => {
         process.env = { ...originalEnv };
@@ -55,21 +80,10 @@ describe("recordService", () => {
             return Promise.resolve({ getBoolean: () => false, getString: () => "" });
         });
 
-        vi.spyOn(SgRecord, "query").mockReturnValue({
-            create: vi.fn((data) => Promise.resolve({ id: 1, ...data })),
-            where: vi.fn(() => ({
-                update: updateMock,
-            })),
-            orderBy: vi.fn(() => ({
-                limit: vi.fn(() => ({
-                    get: vi.fn(() => Promise.resolve([])),
-                    select: vi.fn(function (this: any) {
-                        return this;
-                    }),
-                })),
-            })),
-        } as any);
-        updateMock.mockClear();
+        sgRecordMocks.create.mockClear();
+        sgRecordMocks.update.mockClear();
+        sgRecordMocks.create.mockImplementation((data: any) => Promise.resolve({ id: 1, ...data }));
+        sgRecordMocks.update.mockImplementation((data: any) => Promise.resolve([1]));
     });
 
     afterEach(() => {
@@ -136,10 +150,10 @@ describe("recordService", () => {
             JSON.stringify({ request: "req", response: "resp body" }),
         );
         // record table update excludes response_data
-        expect(updateMock).toHaveBeenCalledWith(
+        expect(sgRecordMocks.update).toHaveBeenCalledWith(
             expect.not.objectContaining({ response_data: expect.anything() }),
         );
-        expect(updateMock).toHaveBeenCalledWith(
+        expect(sgRecordMocks.update).toHaveBeenCalledWith(
             expect.objectContaining({ status: "success" }),
         );
     });
@@ -148,7 +162,7 @@ describe("recordService", () => {
         await recordService.update(1, { status: "failed" as any });
 
         expect(objectStorageMocks.putText).not.toHaveBeenCalled();
-        expect(updateMock).toHaveBeenCalledWith({ status: "failed" });
+        expect(sgRecordMocks.update).toHaveBeenCalledWith({ status: "failed" });
     });
 
     it("skips storage write on create when payload recording is disabled", async () => {
@@ -180,7 +194,7 @@ describe("recordService", () => {
         // No storage write
         expect(objectStorageMocks.putText).not.toHaveBeenCalled();
         // response_data still stripped from record table update
-        expect(updateMock).toHaveBeenCalledWith(
+        expect(sgRecordMocks.update).toHaveBeenCalledWith(
             expect.not.objectContaining({ response_data: expect.anything() }),
         );
     });
