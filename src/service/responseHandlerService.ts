@@ -10,17 +10,14 @@ import { ProtocolStreamEvent } from "../util/protocolConverter/protocolTypes";
 import recordService from "./recordService";
 import userService from "./userService";
 import streamLogService from "./streamLogService";
-import usageUtils from "../util/usageUtils";
-import protocolUtils from "../util/protocolUtils";
-import sseAccumulator from "../util/sseAccumulator";
+import usageUtils, { type Dict } from "../util/usageUtils";
+import chatAccumulator from "../util/chatAccumulator";
 import responsesAccumulator from "../util/responsesAccumulator";
 import sseEvent from "../util/sseEvent";
 import { runInBackground } from "../util/runInBackground";
 import customError from "../util/customError";
 
-type Dict = Record<string, unknown>;
-
-export async function handleStreamResponse(
+export async function handleChatStreamResponse(
     c: Context,
     upstreamRes: Response,
     record: SgRecord,
@@ -31,7 +28,7 @@ export async function handleStreamResponse(
     converter: BaseConverter | null = null,
 ): Promise<Response> {
     const needsConversion = format !== upstreamFormat;
-    const accumulator = new sseAccumulator.SSEAccumulator(
+    const accumulator = new chatAccumulator.OpenAIChatAccumulator(
         format === ApiFormat.ANTHROPIC ? "anthropic" : "openai",
     );
 
@@ -44,8 +41,8 @@ export async function handleStreamResponse(
         const decoder = new TextDecoder();
         let buffer = "";
         let eventCount = 0;
-        let streamCompleted = false;
         let failedCode: string | null = null;
+        let streamErrorData: unknown | null = null;
 
         const abortHandler = () => {
             if (!failedCode) failedCode = FailedCode.CLIENT_DISCONNECTED;
@@ -92,15 +89,21 @@ export async function handleStreamResponse(
                     for (const clientEvent of clientEvents) {
                         if (!clientEvent.data) continue;
 
-                        const isCompleted = sseEvent.isClientStreamCompleted(format, clientEvent);
-                        if (firstTokenTime === null && !isCompleted) {
+                        accumulator.addEvent(clientEvent);
+
+                        if (firstTokenTime === null && accumulator.isOutputStarted()) {
                             firstTokenTime = Date.now();
                         }
 
-                        if (isCompleted) {
-                            streamCompleted = true;
-                        } else if (sseEvent.isClientStreamError(format, clientEvent)) {
-                            failedCode = FailedCode.UPSTREAM_ERROR;
+                        if (accumulator.isErrored()) {
+                            if (
+                                failedCode !== FailedCode.CLIENT_DISCONNECTED
+                                && failedCode !== FailedCode.UPSTREAM_DISCONNECTED
+                            ) {
+                                failedCode = FailedCode.UPSTREAM_ERROR;
+                            }
+                            streamErrorData = accumulator.getError()
+                                ?? { event: clientEvent.event, data: clientEvent.data };
                         }
 
                         try {
@@ -114,15 +117,6 @@ export async function handleStreamResponse(
                             failedCode = FailedCode.CLIENT_DISCONNECTED;
                             clientDisconnected = true;
                             break;
-                        }
-
-                        if (isCompleted) continue;
-
-                        try {
-                            const parsedData = JSON.parse(clientEvent.data);
-                            accumulator.addMessage(parsedData, clientEvent.event);
-                        } catch (e) {
-                            console.log("Failed to parse SSE data:", clientEvent.data, e);
                         }
                     }
 
@@ -140,12 +134,14 @@ export async function handleStreamResponse(
 
         c.req.raw.signal.removeEventListener("abort", abortHandler);
 
-        console.log(`[responseHandlerService] Stream ended, events: ${eventCount}, completed: ${streamCompleted}, failedCode: ${failedCode}`);
+        console.log(`[responseHandlerService] Stream ended, events: ${eventCount}, completed: ${accumulator.isCompleted()}, failedCode: ${failedCode}`);
 
         runInBackground(c, async () => {
-            if (streamCompleted) {
+            // 响应已完整接收（[DONE] / message_stop）时优先视为成功：
+            // 即使随后客户端或上游连接断开，也可能只是客户端拿到完整结果后提前关闭了连接
+            if (accumulator.isCompleted()) {
                 const fullResponse = accumulator.getResponse();
-                const usage = fullResponse.usage;
+                const usage = accumulator.getUsage();
                 const usageAccounting = usageUtils.buildStreamUsageAccounting(format, usage, model);
 
                 await recordService.update(record.id, {
@@ -162,20 +158,45 @@ export async function handleStreamResponse(
                 if (user.type !== "root") {
                     await userService.deductBalance(user.id, usageAccounting.cost);
                 }
-            } else {
+                return;
+            }
+
+            if (
+                failedCode === FailedCode.CLIENT_DISCONNECTED
+                || failedCode === FailedCode.UPSTREAM_DISCONNECTED
+            ) {
                 await recordService.update(record.id, {
                     status: SgRecordStatus.FAILED,
-                    failed_code: failedCode ?? FailedCode.STREAM_INCOMPLETE,
+                    failed_code: failedCode,
                     end_at: new Date(),
                 });
+                return;
             }
+
+            if (failedCode === FailedCode.UPSTREAM_ERROR || accumulator.isErrored()) {
+                const errorData = accumulator.getError() ?? streamErrorData;
+                await recordService.update(record.id, {
+                    status: SgRecordStatus.FAILED,
+                    failed_code: FailedCode.UPSTREAM_ERROR,
+                    response_data: errorData !== null && typeof errorData !== "string"
+                        ? JSON.stringify(errorData) : null,
+                    end_at: new Date(),
+                });
+                return;
+            }
+
+            await recordService.update(record.id, {
+                status: SgRecordStatus.FAILED,
+                failed_code: FailedCode.STREAM_INCOMPLETE,
+                end_at: new Date(),
+            });
         });
 
         logStream?.end();
     });
 }
 
-export async function handleNonStreamResponse(
+export async function handleChatNonStreamResponse(
     c: Context,
     upstreamRes: Response,
     record: SgRecord,
@@ -324,21 +345,13 @@ export async function handleResponsesStreamResponse(
                     for (const clientEvent of clientEvents) {
                         if (!clientEvent.data) continue;
 
-                        let clientParsedData: any = null;
-                        try {
-                            clientParsedData = JSON.parse(clientEvent.data);
-                        } catch {}
-                        const clientEventType = clientParsedData?.type ?? "";
+                        accumulator.addEvent(clientEvent);
 
-                        if (clientParsedData) {
-                            accumulator.addEvent(clientParsedData, clientEvent.event);
-                        }
-
-                        if (firstTokenTime === null && protocolUtils.isResponsesOutputStartedEvent(clientEventType)) {
+                        if (firstTokenTime === null && accumulator.isOutputStarted()) {
                             firstTokenTime = Date.now();
                         }
 
-                        if (sseEvent.isClientStreamError(ApiFormat.RESPONSES, clientEvent) || accumulator.isErrored()) {
+                        if (accumulator.isErrored()) {
                             if (
                                 failedCode !== FailedCode.CLIENT_DISCONNECTED
                                 && failedCode !== FailedCode.UPSTREAM_DISCONNECTED
@@ -346,7 +359,6 @@ export async function handleResponsesStreamResponse(
                                 failedCode = FailedCode.UPSTREAM_ERROR;
                             }
                             streamErrorData = accumulator.getError()
-                                ?? clientParsedData
                                 ?? { event: clientEvent.event, data: clientEvent.data };
                         }
 
@@ -519,8 +531,8 @@ export async function handleResponsesNonStreamResponse(
 }
 
 export default {
-    handleStreamResponse,
-    handleNonStreamResponse,
+    handleChatStreamResponse,
+    handleChatNonStreamResponse,
     handleResponsesStreamResponse,
     handleResponsesNonStreamResponse,
 };

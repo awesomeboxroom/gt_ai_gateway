@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import sseAccumulator from "../../src/util/sseAccumulator";
+import chatAccumulator from "../../src/util/chatAccumulator";
 
 function requireFixture(fileName: string): string {
     const logFile = join(__dirname, "..", "resource", "stream_logs", fileName);
@@ -14,24 +14,21 @@ function requireFixture(fileName: string): string {
 }
 
 function parseOpenAIStream(content: string) {
-    const accumulator = new sseAccumulator.SSEAccumulator("openai");
+    const accumulator = new chatAccumulator.OpenAIChatAccumulator("openai");
     const events = content.split("\n\n").filter((event) => event.trim());
 
     for (const event of events) {
         const dataMatch = event.match(/^data:\s*(.+)$/m);
         if (!dataMatch) continue;
 
-        const data = dataMatch[1];
-        if (data === "[DONE]") continue;
-
-        accumulator.addMessage(JSON.parse(data));
+        accumulator.addEvent({ data: dataMatch[1] });
     }
 
     return accumulator.getResponse();
 }
 
 function parseAnthropicStream(content: string) {
-    const accumulator = new sseAccumulator.SSEAccumulator("anthropic");
+    const accumulator = new chatAccumulator.OpenAIChatAccumulator("anthropic");
     const events = content.split("\n\n").filter((event) => event.trim());
 
     for (const event of events) {
@@ -47,9 +44,9 @@ function parseAnthropicStream(content: string) {
             }
         }
 
-        if (!data || data === "[DONE]") continue;
+        if (!data) continue;
 
-        accumulator.addMessage(JSON.parse(data), eventType);
+        accumulator.addEvent({ data, event: eventType });
     }
 
     return accumulator.getResponse();
@@ -135,5 +132,72 @@ describe("SSE Accumulator Fixtures", () => {
         );
         expect(response.usage?.prompt_tokens).toBe(197);
         expect(response.usage?.completion_tokens).toBe(77);
+    });
+});
+
+describe("OpenAIChatAccumulator stream state", () => {
+    it("marks completed on [DONE] (openai)", () => {
+        const acc = new chatAccumulator.OpenAIChatAccumulator("openai");
+        acc.addEvent({ data: JSON.stringify({ choices: [{ delta: { content: "hi" } }] }) });
+        acc.addEvent({ data: "[DONE]" });
+
+        expect(acc.isCompleted()).toBe(true);
+        expect(acc.isOutputStarted()).toBe(true);
+        expect(acc.isErrored()).toBe(false);
+    });
+
+    it("marks completed on message_stop (anthropic)", () => {
+        const acc = new chatAccumulator.OpenAIChatAccumulator("anthropic");
+        acc.addEvent({ data: JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text: "hi" } }), event: "content_block_delta" });
+        acc.addEvent({ data: JSON.stringify({ type: "message_stop" }), event: "message_stop" });
+
+        expect(acc.isCompleted()).toBe(true);
+        expect(acc.isOutputStarted()).toBe(true);
+    });
+
+    it("does not flag output started on lifecycle events", () => {
+        const acc = new chatAccumulator.OpenAIChatAccumulator("anthropic");
+        acc.addEvent({ data: JSON.stringify({ type: "message_start", message: { id: "m1", model: "claude" } }), event: "message_start" });
+
+        // message_start 是非完成/非错误事件，按现行 TTFT 语义仍计为 outputStarted
+        expect(acc.isOutputStarted()).toBe(true);
+        expect(acc.isCompleted()).toBe(false);
+    });
+
+    it("marks errored on error event", () => {
+        const acc = new chatAccumulator.OpenAIChatAccumulator("openai");
+        acc.addEvent({ data: JSON.stringify({ type: "error", error: { message: "rate limited" } }) });
+
+        expect(acc.isErrored()).toBe(true);
+        expect(acc.isCompleted()).toBe(false);
+        expect(acc.getError()).toMatchObject({ type: "error" });
+    });
+
+    it("marks errored on SSE event:error envelope", () => {
+        const acc = new chatAccumulator.OpenAIChatAccumulator("anthropic");
+        acc.addEvent({ data: JSON.stringify({ type: "error", error: { message: "rate limited" } }), event: "error" });
+
+        expect(acc.isErrored()).toBe(true);
+    });
+
+    it("getUsage returns accumulated usage", () => {
+        const acc = new chatAccumulator.OpenAIChatAccumulator("openai");
+        acc.addEvent({ data: JSON.stringify({ choices: [{ delta: { content: "hi" }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 3 } }) });
+
+        expect(acc.getUsage()?.prompt_tokens).toBe(5);
+        expect(acc.getUsage()?.completion_tokens).toBe(3);
+    });
+
+    it("reset clears all state", () => {
+        const acc = new chatAccumulator.OpenAIChatAccumulator("openai");
+        acc.addEvent({ data: JSON.stringify({ choices: [{ delta: { content: "hi" } }] }) });
+        acc.addEvent({ data: "[DONE]" });
+        acc.reset();
+
+        expect(acc.isCompleted()).toBe(false);
+        expect(acc.isOutputStarted()).toBe(false);
+        expect(acc.isErrored()).toBe(false);
+        expect(acc.getError()).toBeNull();
+        expect(acc.getResponse().choices[0].message.content).toBe("");
     });
 });

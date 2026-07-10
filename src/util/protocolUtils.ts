@@ -32,18 +32,6 @@ export function resolveUpstreamFormat(
     return clientFormat;
 }
 
-export function isResponsesOutputStartedEvent(eventType: string): boolean {
-    return [
-        "response.output_item.added",
-        "response.content_part.added",
-        "response.output_text.delta",
-        "response.function_call_arguments.delta",
-        "response.reasoning_summary_text.delta",
-        "response.reasoning_summary_part.added",
-    ].includes(eventType);
-}
-
 export default {
     resolveUpstreamFormat,
-    isResponsesOutputStartedEvent,
 };

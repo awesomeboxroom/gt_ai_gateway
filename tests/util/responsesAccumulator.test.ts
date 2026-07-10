@@ -21,11 +21,7 @@ function parseResponsesStream(content: string) {
         const data = line.slice(5).trim();
         if (!data) continue;
 
-        try {
-            accumulator.addEvent(JSON.parse(data));
-        } catch {
-            // ignore unparseable lines
-        }
+        accumulator.addEvent({ data });
     }
 
     return accumulator;
@@ -83,11 +79,11 @@ describe("ResponsesAccumulator", () => {
         it("accumulates delta text before response.completed arrives", () => {
             const acc = new responsesAccumulator.ResponsesAccumulator();
 
-            acc.addEvent({ type: "response.created", response: { id: "r1", model: "gpt-4o", object: "response", status: "in_progress" } });
-            acc.addEvent({ type: "response.output_item.added", output_index: 0, item: { id: "m1", type: "message", role: "assistant", status: "in_progress" } });
-            acc.addEvent({ type: "response.content_part.added", output_index: 0, content_index: 0, part: { type: "output_text", text: "", annotations: [] } });
-            acc.addEvent({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "Hello" });
-            acc.addEvent({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: " world" });
+            acc.addEvent({ data: JSON.stringify({ type: "response.created", response: { id: "r1", model: "gpt-4o", object: "response", status: "in_progress" } }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_item.added", output_index: 0, item: { id: "m1", type: "message", role: "assistant", status: "in_progress" } }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.content_part.added", output_index: 0, content_index: 0, part: { type: "output_text", text: "", annotations: [] } }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "Hello" }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: " world" }) });
 
             // response.completed 还未到达，getText() 已可使用
             expect(acc.getText()).toBe("Hello world");
@@ -96,11 +92,11 @@ describe("ResponsesAccumulator", () => {
         it("output_text.done overwrites incremental text", () => {
             const acc = new responsesAccumulator.ResponsesAccumulator();
 
-            acc.addEvent({ type: "response.output_item.added", output_index: 0, item: { role: "assistant" } });
-            acc.addEvent({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "partia" });
-            acc.addEvent({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "l" });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_item.added", output_index: 0, item: { role: "assistant" } }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "partia" }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "l" }) });
             // done 事件携带权威完整文本
-            acc.addEvent({ type: "response.output_text.done", output_index: 0, content_index: 0, text: "partial" });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_text.done", output_index: 0, content_index: 0, text: "partial" }) });
 
             expect(acc.getResponse().output[0].content[0].text).toBe("partial");
         });
@@ -111,18 +107,20 @@ describe("ResponsesAccumulator", () => {
             const acc = new responsesAccumulator.ResponsesAccumulator();
 
             acc.addEvent({
-                type: "response.completed",
-                response: {
-                    id: "r1",
-                    object: "response",
-                    status: "completed",
-                    output: [],
-                    usage: {
-                        input_tokens: 2,
-                        output_tokens: 3,
-                        total_tokens: 5,
+                data: JSON.stringify({
+                    type: "response.completed",
+                    response: {
+                        id: "r1",
+                        object: "response",
+                        status: "completed",
+                        output: [],
+                        usage: {
+                            input_tokens: 2,
+                            output_tokens: 3,
+                            total_tokens: 5,
+                        },
                     },
-                },
+                }),
             });
 
             expect(acc.isCompleted()).toBe(true);
@@ -145,7 +143,7 @@ describe("ResponsesAccumulator", () => {
                 },
             };
 
-            acc.addEvent(errorPayload, "error");
+            acc.addEvent({ data: JSON.stringify(errorPayload), event: "error" });
 
             expect(acc.isCompleted()).toBe(false);
             expect(acc.isErrored()).toBe(true);
@@ -166,10 +164,50 @@ describe("ResponsesAccumulator", () => {
                 },
             };
 
-            acc.addEvent(failedPayload);
+            acc.addEvent({ data: JSON.stringify(failedPayload) });
 
             expect(acc.isErrored()).toBe(true);
             expect(acc.getError()).toEqual(failedPayload);
+        });
+
+        it("does not flag output started on lifecycle events", () => {
+            const acc = new responsesAccumulator.ResponsesAccumulator();
+
+            acc.addEvent({ data: JSON.stringify({ type: "response.created", response: { id: "r1", model: "gpt-4o" } }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.in_progress" }) });
+
+            expect(acc.isOutputStarted()).toBe(false);
+        });
+
+        it("flags output started on text delta", () => {
+            const acc = new responsesAccumulator.ResponsesAccumulator();
+
+            acc.addEvent({ data: JSON.stringify({ type: "response.created", response: { id: "r1" } }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "Hi" }) });
+
+            expect(acc.isOutputStarted()).toBe(true);
+        });
+
+        it("flags output started on function call and reasoning deltas", () => {
+            const acc1 = new responsesAccumulator.ResponsesAccumulator();
+            acc1.addEvent({ data: JSON.stringify({ type: "response.function_call_arguments.delta", output_index: 0, delta: "{" }) });
+            expect(acc1.isOutputStarted()).toBe(true);
+
+            const acc2 = new responsesAccumulator.ResponsesAccumulator();
+            acc2.addEvent({ data: JSON.stringify({ type: "response.reasoning_summary_text.delta", output_index: 0, delta: "thinking" }) });
+            expect(acc2.isOutputStarted()).toBe(true);
+
+            const acc3 = new responsesAccumulator.ResponsesAccumulator();
+            acc3.addEvent({ data: JSON.stringify({ type: "response.reasoning_summary_part.added", output_index: 0 }) });
+            expect(acc3.isOutputStarted()).toBe(true);
+        });
+
+        it("flags output started on output_item.added", () => {
+            const acc = new responsesAccumulator.ResponsesAccumulator();
+
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_item.added", output_index: 0, item: { type: "message", role: "assistant" } }) });
+
+            expect(acc.isOutputStarted()).toBe(true);
         });
     });
 
@@ -177,8 +215,9 @@ describe("ResponsesAccumulator", () => {
         it("clears all accumulated state", () => {
             const acc = new responsesAccumulator.ResponsesAccumulator();
 
-            acc.addEvent({ type: "response.created", response: { id: "r1", model: "gpt-4o" } });
-            acc.addEvent({ type: "error", error: { message: "failed" } }, "error");
+            acc.addEvent({ data: JSON.stringify({ type: "response.created", response: { id: "r1", model: "gpt-4o" } }) });
+            acc.addEvent({ data: JSON.stringify({ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "Hi" }) });
+            acc.addEvent({ data: JSON.stringify({ type: "error", error: { message: "failed" } }), event: "error" });
             acc.reset();
 
             const response = acc.getResponse();
@@ -187,6 +226,7 @@ describe("ResponsesAccumulator", () => {
             expect(response.output).toHaveLength(0);
             expect(acc.isCompleted()).toBe(false);
             expect(acc.isErrored()).toBe(false);
+            expect(acc.isOutputStarted()).toBe(false);
             expect(acc.getError()).toBeNull();
         });
     });

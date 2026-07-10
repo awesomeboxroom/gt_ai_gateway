@@ -1,4 +1,3 @@
-import { ApiFormat } from "../constants";
 import type { ProtocolStreamEvent } from "./protocolConverter/protocolTypes";
 
 interface ParsedSSEEvent extends ProtocolStreamEvent {}
@@ -29,47 +28,7 @@ function parseEvent(event: string): ParsedSSEEvent | null {
 }
 
 
-function getJsonEventType(data: string): string | null {
-    try {
-        return JSON.parse(data)?.type ?? null;
-    } catch {
-        return null;
-    }
-}
-
-
-function isClientStreamError(format: ApiFormat, event: ProtocolStreamEvent): boolean {
-    if (event.event === "error") return true;
-    try {
-        const parsed = JSON.parse(event.data);
-        if (parsed?.type === "error" || parsed?.type === "response.failed" || parsed?.error) {
-            return true;
-        }
-    } catch {}
-    return false;
-}
-
-function isClientStreamCompleted(format: ApiFormat, event: ProtocolStreamEvent): boolean {
-    if (format === ApiFormat.OPENAI) {
-        return event.data === "[DONE]";
-    }
-
-    if (format === ApiFormat.ANTHROPIC) {
-        return event.event === "message_stop" || getJsonEventType(event.data) === "message_stop";
-    }
-
-    if (format === ApiFormat.RESPONSES) {
-        return getJsonEventType(event.data) === "response.completed";
-    }
-
-    return false;
-}
-
-
 export default {
     splitEvents,
     parseEvent,
-    getJsonEventType,
-    isClientStreamCompleted,
-    isClientStreamError,
 };

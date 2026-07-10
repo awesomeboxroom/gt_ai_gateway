@@ -126,21 +126,6 @@ describe("buildStreamUsageAccounting", () => {
 });
 
 
-describe("isResponsesOutputStartedEvent", () => {
-    it("treats function call and reasoning deltas as output start events", () => {
-        expect(protocolUtils.isResponsesOutputStartedEvent("response.output_text.delta")).toBe(true);
-        expect(protocolUtils.isResponsesOutputStartedEvent("response.function_call_arguments.delta")).toBe(true);
-        expect(protocolUtils.isResponsesOutputStartedEvent("response.reasoning_summary_text.delta")).toBe(true);
-        expect(protocolUtils.isResponsesOutputStartedEvent("response.output_item.added")).toBe(true);
-    });
-
-    it("does not treat lifecycle events as output start events", () => {
-        expect(protocolUtils.isResponsesOutputStartedEvent("response.created")).toBe(false);
-        expect(protocolUtils.isResponsesOutputStartedEvent("response.in_progress")).toBe(false);
-        expect(protocolUtils.isResponsesOutputStartedEvent("response.completed")).toBe(false);
-    });
-});
-
 // ============================================================
 // 基础用例：同格式透传
 // ============================================================

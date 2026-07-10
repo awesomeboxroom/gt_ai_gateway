@@ -2,7 +2,7 @@ import { SgModel } from "../model/sgModel";
 import { ApiFormat } from "../constants";
 import { SgRecordUsage } from "../model/sgRecord";
 
-type Dict = Record<string, unknown>;
+export type Dict = Record<string, unknown>;
 
 export function calculateCost(
     model: SgModel,

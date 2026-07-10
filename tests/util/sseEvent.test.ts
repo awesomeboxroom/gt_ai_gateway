@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { ApiFormat } from "../../src/constants";
 import sseEvent from "../../src/util/sseEvent";
 
 describe("sseEvent", () => {
@@ -41,45 +40,5 @@ describe("sseEvent", () => {
     it("should return null for events without data", () => {
         expect(sseEvent.parseEvent("event: ping")).toBeNull();
         expect(sseEvent.parseEvent("data:   ")).toBeNull();
-    });
-
-    it("should get JSON event type safely", () => {
-        expect(sseEvent.getJsonEventType("{\"type\":\"response.completed\"}")).toBe("response.completed");
-        expect(sseEvent.getJsonEventType("{ not json }")).toBeNull();
-        expect(sseEvent.getJsonEventType("{\"foo\":\"bar\"}")).toBeNull();
-    });
-
-    it("should detect client stream completion by format", () => {
-        expect(sseEvent.isClientStreamCompleted(ApiFormat.OPENAI, { data: "[DONE]" })).toBe(true);
-        expect(sseEvent.isClientStreamCompleted(ApiFormat.OPENAI, { data: "{\"type\":\"message_stop\"}" })).toBe(false);
-        expect(sseEvent.isClientStreamCompleted(ApiFormat.ANTHROPIC, {
-            event: "message_stop",
-            data: "{\"type\":\"message_stop\"}",
-        })).toBe(true);
-        expect(sseEvent.isClientStreamCompleted(ApiFormat.ANTHROPIC, {
-            data: "{\"type\":\"message_stop\"}",
-        })).toBe(true);
-        expect(sseEvent.isClientStreamCompleted(ApiFormat.ANTHROPIC, {
-            data: "{\"type\":\"message_delta\"}",
-        })).toBe(false);
-        expect(sseEvent.isClientStreamCompleted(ApiFormat.RESPONSES, {
-            data: "{\"type\":\"response.completed\"}",
-        })).toBe(true);
-    });
-
-    it("should detect client stream errors", () => {
-        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
-            event: "error",
-            data: "{\"type\":\"error\",\"error\":{\"message\":\"rate limited\"}}",
-        })).toBe(true);
-        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
-            data: "{\"type\":\"error\",\"error\":{\"message\":\"rate limited\"}}",
-        })).toBe(true);
-        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
-            data: "{\"type\":\"response.failed\",\"response\":{\"status\":\"failed\"}}",
-        })).toBe(true);
-        expect(sseEvent.isClientStreamError(ApiFormat.RESPONSES, {
-            data: "{\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}",
-        })).toBe(false);
     });
 });

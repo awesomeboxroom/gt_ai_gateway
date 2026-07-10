@@ -1,9 +1,12 @@
 /**
- * SSE 消息累加器
- * 用于累积流式 AI 响应，生成完整的响应对象
+ * Chat 流式响应累加器
+ * 累积 OpenAI Chat Completions 和 Anthropic Messages 两种 delta 流，组装成完整响应对象。
+ * 与 responsesAccumulator（处理 OpenAI Responses API）对应，本模块处理“chat/messages”这一族协议。
  */
 
-interface SSEMessage {
+import type { ProtocolStreamEvent } from "./protocolConverter/protocolTypes";
+
+interface OpenAIChatChunk {
     id?: string;
     object?: string;
     created?: number;
@@ -43,7 +46,7 @@ interface SSEMessage {
 /**
  * Anthropic 格式的 SSE 消息
  */
-interface AnthropicSSEMessage {
+interface AnthropicChunk {
     type?: string;
     message?: {
         id?: string;
@@ -84,7 +87,7 @@ interface AnthropicSSEMessage {
     index?: number;
 }
 
-interface AccumulatedResponse {
+interface ChatAccumulatedResponse {
     id?: string;
     object?: string;
     created?: number;
@@ -128,35 +131,72 @@ interface AccumulatedResponse {
     };
 }
 
-type SSEFormat = 'openai' | 'anthropic';
+type ChatStreamFormat = 'openai' | 'anthropic';
 
-class SSEAccumulator {
-    private format: SSEFormat;
-    private response: AccumulatedResponse = {
+class OpenAIChatAccumulator {
+    private format: ChatStreamFormat;
+    private response: ChatAccumulatedResponse = {
         choices: [{ index: 0, message: { content: "", thinking: "", signature: "" }, finish_reason: null }],
     };
+    private completed = false;
+    private errored = false;
+    private error: unknown | null = null;
+    private outputStarted = false;
 
-    constructor(format: SSEFormat = 'openai') {
+    constructor(format: ChatStreamFormat = 'openai') {
         this.format = format;
     }
 
     /**
-     * 添加一条 SSE 消息
-     * @param msg - SSE 消息对象
-     * @param eventType - SSE 事件类型（用于 Anthropic 格式）
+     * 添加一条客户端 SSE 事件（原始 data 字符串）
+     * 内部解析并检测完成/错误/首个输出，与 ResponsesAccumulator.addEvent 同构。
      */
-    addMessage(msg: SSEMessage | AnthropicSSEMessage, eventType?: string): void {
+    addEvent(clientEvent: ProtocolStreamEvent): void {
+        const data = clientEvent.data;
+
+        // OpenAI 流结束标记
+        if (this.format === 'openai' && data === "[DONE]") {
+            this.completed = true;
+            return;
+        }
+
+        let parsed: any;
+        try {
+            parsed = JSON.parse(data);
+        } catch (e) {
+            console.log("Failed to parse SSE data:", data, e);
+            return;
+        }
+
+        // 错误事件检测（与 sseEvent.isClientStreamError 等价）
+        if (clientEvent.event === "error" || parsed?.type === "error" || parsed?.error !== undefined) {
+            this.errored = true;
+            this.error = parsed;
+            return;
+        }
+
+        // Anthropic 流结束标记：message_stop 仍需累积 usage/stop_reason
+        if (this.format === 'anthropic' && clientEvent.event === "message_stop") {
+            this.handleAnthropicMessage(parsed, clientEvent.event);
+            this.completed = true;
+            return;
+        }
+
+        // 其余非完成/非错误事件：标记首个输出已到达
+        // （保留原 `!isCompleted` 的 TTFT 语义：含 role:assistant 等首 chunk）
+        this.outputStarted = true;
+
         if (this.format === 'anthropic') {
-            this.handleAnthropicMessage(msg as AnthropicSSEMessage, eventType);
+            this.handleAnthropicMessage(parsed, clientEvent.event);
         } else {
-            this.handleOpenAIMessage(msg as SSEMessage);
+            this.handleOpenAIMessage(parsed);
         }
     }
 
     /**
      * 处理 OpenAI 格式的消息
      */
-    private handleOpenAIMessage(msg: SSEMessage): void {
+    private handleOpenAIMessage(msg: OpenAIChatChunk): void {
         // 保存基本信息（只保存一次）
         if (msg.id) this.response.id = msg.id;
         if (msg.object) this.response.object = msg.object;
@@ -262,7 +302,7 @@ class SSEAccumulator {
      * - message_delta: 更新 stop_reason (在 delta 中) 和最终 usage
      * - message_stop: 响应结束（无需处理）
      */
-    private handleAnthropicMessage(msg: AnthropicSSEMessage, eventType?: string): void {
+    private handleAnthropicMessage(msg: AnthropicChunk, eventType?: string): void {
         // message_start 事件：保存基本信息
         if (eventType === 'message_start' && msg.message) {
             if (msg.message.id) this.response.id = msg.message.id;
@@ -360,7 +400,7 @@ class SSEAccumulator {
      * 获取累积的完整响应
      * @returns 完整的响应对象
      */
-    getResponse(): AccumulatedResponse {
+    getResponse(): ChatAccumulatedResponse {
         const toolUseList = this.response.choices[0]?.message.tool_use;
         if (toolUseList) {
             for (const toolUse of toolUseList) {
@@ -386,6 +426,42 @@ class SSEAccumulator {
     }
 
     /**
+     * 是否收到流结束标记（OpenAI [DONE] / Anthropic message_stop）
+     */
+    isCompleted(): boolean {
+        return this.completed;
+    }
+
+    /**
+     * 是否收到错误事件
+     */
+    isErrored(): boolean {
+        return this.errored;
+    }
+
+    /**
+     * 模型是否已开始产出内容（收到首个非完成/非错误事件）
+     * 用于测量首 token 时间（TTFT）
+     */
+    isOutputStarted(): boolean {
+        return this.outputStarted;
+    }
+
+    /**
+     * 获取流式错误 payload
+     */
+    getError(): unknown | null {
+        return this.error;
+    }
+
+    /**
+     * 获取累积的 usage（来自流末尾 chunk / message_stop）
+     */
+    getUsage(): ChatAccumulatedResponse["usage"] | null {
+        return this.response.usage ?? null;
+    }
+
+    /**
      * 重置累加器
      */
     reset(): void {
@@ -394,9 +470,13 @@ class SSEAccumulator {
                 { index: 0, message: { content: "", thinking: "", signature: "" }, finish_reason: null },
             ],
         };
+        this.completed = false;
+        this.errored = false;
+        this.error = null;
+        this.outputStarted = false;
     }
 }
 
 export default {
-    SSEAccumulator,
+    OpenAIChatAccumulator,
 };

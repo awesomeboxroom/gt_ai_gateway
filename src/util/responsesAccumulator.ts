@@ -12,6 +12,9 @@
  * - response.completed     → 用完整 response 对象覆盖（包含 usage）
  */
 
+import type { ProtocolStreamEvent } from "./protocolConverter/protocolTypes";
+import type { ResponsesStreamEvent } from "./protocolConverter/responsesTypes";
+
 interface ResponsesContentPart {
     type?: string;
     text?: string;
@@ -50,20 +53,43 @@ interface ResponsesAccumulatedResponse {
 }
 
 class ResponsesAccumulator {
+    // 标记“模型已开始产出内容”的事件类型。
+    // 这些事件出现即表示首个输出 token 已到达（区别于 response.created/in_progress 等前置控制事件）。
+    private static OUTPUT_STARTED_EVENTS = new Set([
+        "response.output_item.added",
+        "response.content_part.added",
+        "response.output_text.delta",
+        "response.function_call_arguments.delta",
+        "response.reasoning_summary_text.delta",
+        "response.reasoning_summary_part.added",
+    ]);
+
     private response: ResponsesAccumulatedResponse = {
         output: [],
     };
     private completed = false;
     private errored = false;
     private error: unknown | null = null;
+    private outputStarted = false;
 
 
     /**
-     * 添加一条 Responses API SSE 事件（data JSON 已解析）
-     * @param event - 已解析的事件对象，type 字段为事件类型
+     * 添加一条 Responses API 客户端 SSE 事件（原始 data 字符串）
+     * 内部解析为 ResponsesStreamEvent 并检测完成/错误/首个输出，与 OpenAIChatAccumulator.addEvent 同构。
      */
-    addEvent(event: Record<string, any>, eventName?: string): void {
+    addEvent(clientEvent: ProtocolStreamEvent): void {
+        let event: Record<string, any>;
+        try {
+            event = JSON.parse(clientEvent.data) as ResponsesStreamEvent as Record<string, any>;
+        } catch {
+            return;
+        }
+        const eventName = clientEvent.event;
         const type: string = event.type ?? "";
+
+        if (ResponsesAccumulator.OUTPUT_STARTED_EVENTS.has(type)) {
+            this.outputStarted = true;
+        }
 
         if (this.isErrorEvent(event, eventName)) {
             this.errored = true;
@@ -250,6 +276,15 @@ class ResponsesAccumulator {
 
 
     /**
+     * 模型是否已开始产出内容（收到首个输出事件）
+     * 用于测量首 token 时间（TTFT）
+     */
+    isOutputStarted(): boolean {
+        return this.outputStarted;
+    }
+
+
+    /**
      * 获取流式错误 payload
      */
     getError(): unknown | null {
@@ -286,6 +321,7 @@ class ResponsesAccumulator {
         this.completed = false;
         this.errored = false;
         this.error = null;
+        this.outputStarted = false;
     }
 }
 

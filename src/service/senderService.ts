@@ -214,9 +214,9 @@ async function sendRequest(
     }
 
     if (isStream) {
-        return responseHandlerService.handleStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
+        return responseHandlerService.handleChatStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
     } else {
-        return responseHandlerService.handleNonStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
+        return responseHandlerService.handleChatNonStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
     }
 }
 
