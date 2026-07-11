@@ -237,12 +237,14 @@ export async function migrate(adapter: DBAdapter, env: string) {
 
         // Worker mode: 合并所有 pending migrations 为一个文件，一次执行
         if (!adapter.execTransaction) {
+            console.log(`\n📦 Merging ${pendingMigrations.length} migrations into single file:`);
+            pendingMigrations.forEach((file, i) => console.log(`   ${i + 1}. ${file}`));
+
             mkdirSync(TMP_DIR, { recursive: true });
             const tmpFile = join(TMP_DIR, `migration_${crypto.randomUUID()}.sql`);
 
             let combinedSql = "";
             for (const file of pendingMigrations) {
-                console.log(`\nApplying migration: ${file}...`);
                 const sqlPath = join(MIGRATION_DIR, file);
                 const sql = readFileSync(sqlPath, "utf-8");
                 combinedSql += `${sql}\n`;
@@ -255,9 +257,9 @@ export async function migrate(adapter: DBAdapter, env: string) {
                 cmd += ` --config ${dbConfigPath}`;
             }
             cmd += ` --file="${tmpFile}"`;
-            console.log(`> ${cmd}`);
+            console.log(`\n🚀 Executing combined migration file...`);
             execSync(cmd, { stdio: "inherit" });
-            console.log(`✅ Successfully applied ${pendingMigrations.length} migrations`);
+            console.log(`✅ Successfully applied ${pendingMigrations.length} migrations in one batch`);
         } else {
             // Node mode: 用事务逐个执行
             for (const file of pendingMigrations) {
