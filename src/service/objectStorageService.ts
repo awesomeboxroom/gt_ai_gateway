@@ -75,6 +75,14 @@ function normalizeBytes(data: unknown): Uint8Array {
         return new Uint8Array(0);
     }
 
+    // 9. 未知对象类型 - 记录详细信息用于调试
+    console.error("[normalizeBytes] Unknown object type:", {
+        type: typeof data,
+        constructor: (data as any)?.constructor?.name,
+        keys: data !== null && typeof data === "object" ? Object.keys(data) : [],
+        json: JSON.stringify(data)?.substring(0, 200),
+    });
+
     throw new customError.AppError(`unsupported object data type: ${typeof data}`, 500);
 }
 
