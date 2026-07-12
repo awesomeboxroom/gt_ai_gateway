@@ -129,6 +129,14 @@
 
 后续的具体使用和渠道配置，请参考 [系统配置指南](../usage/ConfigurationGuide.md)。
 
+### 关于 wrangler 配置文件
+
+> ⚠️ **重要提示**：Fork 之后，如果使用 GitHub Actions 自动部署，**请不要手动修改项目中的 `wrangler.toml`、`wrangler.toml.prod` 等配置文件**。这些文件中的内容会在 Action 执行时自动填充（如 `database_id`、KV 命名空间 ID 等），手动修改可能会导致自动部署 Action 执行失败。
+
+如果需要修改使用的 Worker 名称、D1 数据库名称、R2 存储桶名称等，请通过 [自定义资源名称](#自定义资源名称) 中介绍的 **GitHub Secrets 环境变量** 方式修改，而不是直接修改 wrangler 配置文件。
+
+如果因为某些原因（如深度二次开发）**一定要修改上述配置文件**，并且修改之后遇到部署失败，那么请参考 [Cloudflare 手动部署文档](CloudflareManualDeploy.md) 使用手动方式部署。
+
 ---
 
 > 如需手动部署或深度定制，请参考 [Cloudflare 手动部署文档](CloudflareManualDeploy.md)。
