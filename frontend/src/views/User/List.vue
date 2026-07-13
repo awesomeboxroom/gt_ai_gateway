@@ -95,17 +95,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { TableColumnsType } from 'ant-design-vue';
 import { useRouter } from 'vue-router';
 import { listUsers } from '@/api/user';
 import { useResourceTable } from '@/composables/useResourceTable';
+import { useAppStore } from '@/stores/app';
 import TokenDisplay from '@/components/common/TokenDisplay.vue';
 import DialogCreate from './DialogCreate.vue';
 import DialogEdit from './DialogEdit.vue';
 import type { User, UserQuery } from '@/types/user';
 
 const router = useRouter();
+const appStore = useAppStore();
 
 const { loading, data, pagination, searchForm, loadData, handleSearch, handleReset, handleTableChange } = useResourceTable<User, UserQuery>({
     initialSearchForm: {
@@ -122,15 +124,20 @@ const { loading, data, pagination, searchForm, loadData, handleSearch, handleRes
 const createDialogRef = ref();
 const editDialogRef = ref();
 
-const columns: TableColumnsType<User> = [
-    { title: 'ID', key: 'id', dataIndex: 'id', width: 80 },
-    { title: '用户名', key: 'name', dataIndex: 'name' },
-    { title: 'Token', key: 'token', dataIndex: 'token' },
-    { title: '类型', key: 'type', dataIndex: 'type', width: 100 },
-    { title: '启用', key: 'status', dataIndex: 'status', width: 80 },
-    { title: '余额', key: 'balance', dataIndex: 'balance', width: 150 },
-    { title: '操作', key: 'action', width: 120, fixed: 'right' as const },
-];
+const columns = computed<TableColumnsType<User>>(() => {
+    const cols: TableColumnsType<User> = [
+        { title: 'ID', key: 'id', dataIndex: 'id', width: 80 },
+        { title: '用户名', key: 'name', dataIndex: 'name' },
+        { title: 'Token', key: 'token', dataIndex: 'token' },
+        { title: '类型', key: 'type', dataIndex: 'type', width: 100 },
+        { title: '启用', key: 'status', dataIndex: 'status', width: 80 },
+    ];
+    if (appStore.moduleBillingEnabled) {
+        cols.push({ title: '余额', key: 'balance', dataIndex: 'balance', width: 150 });
+    }
+    cols.push({ title: '操作', key: 'action', width: 120, fixed: 'right' as const });
+    return cols;
+});
 
 function handleCreate() {
     createDialogRef.value?.open();
