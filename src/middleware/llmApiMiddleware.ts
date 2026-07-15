@@ -4,46 +4,52 @@ import userService from "../service/userService";
 import modelService from "../service/modelService";
 import recordService from "../service/recordService";
 import { SgVendor } from "../model/sgVendor";
+import { SgUser } from "../model/sgUser";
 import customError from "../util/customError";
 
-export const requireLlmAuth = (format: ApiFormat): MiddlewareHandler => {
+
+function getLlmToken(c: Context, allowApiKey: boolean): string {
+    if (allowApiKey) {
+        const apiKey = c.req.header("x-api-key");
+        if (apiKey) {
+            return apiKey;
+        }
+    }
+
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader) {
+        const message = allowApiKey
+            ? "x-api-key or Authorization header is missing"
+            : "Authorization header is missing";
+        throw new customError.AppError(message, 401, "authentication_error");
+    }
+    if (!authHeader.startsWith("Bearer ")) {
+        throw new customError.AppError("Invalid token format", 401, "authentication_error");
+    }
+
+    return authHeader.split(" ")[1];
+}
+
+
+async function authenticateLlmUser(c: Context, allowApiKey: boolean): Promise<SgUser> {
+    const token = getLlmToken(c, allowApiKey);
+    const user = await userService.getUserByToken(token, c.env.ROOT_TOKEN);
+
+    if (user == null) {
+        throw new customError.AppError("Invalid token (user not found)", 401, "authentication_error");
+    }
+    if (user.status === UserStatus.DISABLED) {
+        throw new customError.AppError("User disabled", 403, "authentication_error");
+    }
+
+    return user;
+}
+
+
+const requireLlmAuth = (format: ApiFormat): MiddlewareHandler => {
     return async (c: Context, next) => {
         c.set("api_format", format);
-        
-        let token: string | undefined;
-
-        if (format === ApiFormat.ANTHROPIC) {
-            const apiKey = c.req.header("x-api-key");
-            token = apiKey;
-            if (!token) {
-                const authHeader = c.req.header("Authorization");
-                if (authHeader && authHeader.startsWith("Bearer ")) {
-                    token = authHeader.split(" ")[1];
-                }
-            }
-            if (!token) {
-                throw new customError.AppError("x-api-key or Authorization header is missing", 401, "authentication_error");
-            }
-        } else {
-            const authHeader = c.req.header("Authorization");
-            if (!authHeader) {
-                throw new customError.AppError("Authorization header is missing", 401, "authentication_error");
-            }
-            if (!authHeader.startsWith("Bearer ")) {
-                throw new customError.AppError("Invalid token format", 401, "authentication_error");
-            }
-            token = authHeader.split(" ")[1];
-        }
-
-        const user = await userService.getUserByToken(token, c.env.ROOT_TOKEN);
-
-        if (user == null) {
-            throw new customError.AppError("Invalid token (user not found)", 401, "authentication_error");
-        }
-
-        if (user.status === UserStatus.DISABLED) {
-            throw new customError.AppError("User disabled", 403, "authentication_error");
-        }
+        const user = await authenticateLlmUser(c, format === ApiFormat.ANTHROPIC);
 
         const body = await c.req.text();
         c.set("requestBody", body);
@@ -80,4 +86,12 @@ export const requireLlmAuth = (format: ApiFormat): MiddlewareHandler => {
     };
 };
 
-export default { requireLlmAuth };
+
+const requireLlmModelsAuth: MiddlewareHandler = async (c: Context, next) => {
+    c.set("api_format", ApiFormat.OPENAI);
+    const user = await authenticateLlmUser(c, true);
+    c.set("user", user);
+    await next();
+};
+
+export default { requireLlmAuth, requireLlmModelsAuth };
