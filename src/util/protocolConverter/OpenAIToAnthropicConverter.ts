@@ -114,7 +114,7 @@ export class OpenAIToAnthropicConverter extends BaseConverter {
 
         const anthropicReq: AnthropicRequest = {
             model: clientReq.model,
-            max_tokens: clientReq.max_tokens || clientReq.max_completion_tokens || 4096,
+            max_tokens: clientReq.max_tokens || clientReq.max_completion_tokens || 32768,
             messages,
             stream: clientReq.stream,
             temperature: clientReq.temperature,

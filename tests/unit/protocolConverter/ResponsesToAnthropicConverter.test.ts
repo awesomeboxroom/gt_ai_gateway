@@ -372,14 +372,14 @@ describe("ResponsesToAnthropicConverter - convertRequest", () => {
         expect(result.top_p).toBe(0.9);
     });
 
-    it("should default max_tokens to 4096 when max_output_tokens is not set", () => {
+    it("should default max_tokens to 32768 when max_output_tokens is not set", () => {
         const req: ResponsesRequest = {
             model: "gpt-4.1",
             input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "Hello" }] }],
         };
 
         const result = converter.convertRequest(req);
-        expect(result.max_tokens).toBe(4096);
+        expect(result.max_tokens).toBe(32768);
     });
 
     it("should use max_output_tokens when set", () => {

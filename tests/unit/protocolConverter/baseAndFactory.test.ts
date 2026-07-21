@@ -135,7 +135,7 @@ describe("ConverterFactory", () => {
             model: "gpt-4",
             messages: [{ role: "user", content: "Hello" }],
         });
-        expect(upstreamRequest.max_tokens).toBe(4096);
+        expect(upstreamRequest.max_tokens).toBe(32768);
         expect(upstreamRequest.messages[0].content).toBe("Hello");
 
         const clientResponse = converter!.convertResponse({

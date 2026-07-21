@@ -161,14 +161,14 @@ describe("OpenAIToAnthropicConverter - convertRequest", () => {
         expect(result.stop_sequences).toEqual(["END"]);
     });
 
-    it("should default max_tokens to 4096 if not specified", () => {
+    it("should default max_tokens to 32768 if not specified", () => {
         const openaiReq: OpenAIRequest = {
             model: "gpt-4",
             messages: [{ role: "user", content: "Hello" }],
         };
 
         const result = converter.convertRequest(openaiReq);
-        expect(result.max_tokens).toBe(4096);
+        expect(result.max_tokens).toBe(32768);
     });
 
     it("should use max_completion_tokens when max_tokens is not specified", () => {

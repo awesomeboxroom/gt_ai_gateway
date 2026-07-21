@@ -114,7 +114,7 @@ export class ResponsesToAnthropicConverter extends BaseConverter {
 
         const anthropicReq: AnthropicRequest = {
             model: req.model,
-            max_tokens: req.max_output_tokens || 4096,
+            max_tokens: req.max_output_tokens || 32768,
             messages,
             stream: req.stream,
         };
